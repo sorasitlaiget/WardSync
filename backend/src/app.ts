@@ -49,13 +49,19 @@ export function createApp(): Express {
     });
   });
 
-  // TODO: Register module routes here as we build them
-  // app.use('/api/auth', authRoutes);
+  // Register module routes — uncomment as each module is built
+  // app.use('/api/users', userRoutes);
   // app.use('/api/patients', patientRoutes);
   // app.use('/api/vital-signs', vitalSignsRoutes);
   // app.use('/api/treatments', treatmentRoutes);
-  // app.use('/api/users', userRoutes);
   // app.use('/api/notifications', notificationRoutes);
+
+  // Usage pattern for protected routes:
+  // import { authenticate, requireRole } from './middleware/auth.middleware';
+  // router.get('/', authenticate, handler);                          // any logged-in user
+  // router.post('/', authenticate, requireRole('nurse'), handler);   // nurse only
+  // router.patch('/', authenticate, requireRole('doctor'), handler); // doctor only
+  // router.get('/dashboard', authenticate, requireRole('admin'), handler); // admin only
 
   // 404 handler (must be after all routes)
   app.use(notFoundHandler);
