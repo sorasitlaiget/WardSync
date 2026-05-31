@@ -1,7 +1,18 @@
 import { Request, Response, NextFunction } from 'express';
 import { auth, db } from '../config/firebase.config';
 import { UnauthorizedError, ForbiddenError } from '../core/utils/error';
-import { UserRole } from '../modules/users/users.types';
+import { UserRole, TriageRoom } from '../modules/users/users.types';
+
+declare module 'express-serve-static-core' {
+  interface Request {
+    user?: {
+      uid: string;
+      email: string | undefined;
+      role: UserRole;
+      assignedRoom?: TriageRoom;
+    };
+  }
+}
 
 export async function authenticate(req: Request, res: Response, next: NextFunction) {
   try {
