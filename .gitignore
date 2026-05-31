@@ -1,0 +1,28 @@
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Project specific (covered by sub-folder .gitignore)
+node_modules/
+dist/
+build/
+.env
+firebase-service-account.json
+
+# Flutter (will be in frontend/.gitignore)
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+
+# Logs
+*.log
