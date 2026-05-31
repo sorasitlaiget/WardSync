@@ -16,6 +16,9 @@ async function bootstrap(): Promise<void> {
       logger.info(`🚀 WardSync Backend running on port ${env.port}`);
       logger.info(`📍 Environment: ${env.nodeEnv}`);
       logger.info(`🏥 Health check: http://localhost:${env.port}/health`);
+      if (env.useFirebaseEmulator) {
+        logger.info(`🔧 Emulator UI:  http://localhost:4000`);
+      }
     });
 
     // Graceful shutdown
