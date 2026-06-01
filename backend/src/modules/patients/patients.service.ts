@@ -1,5 +1,6 @@
 import { db, FieldValue, Timestamp } from '../../config/firebase.config';
 import { NotFoundError, BadRequestError, ConflictError } from '../../core/utils/error';
+import { notifyDoctorsNewPatient } from '../../core/utils/notification';
 import {
   Patient,
   CreatePatientDto,
@@ -42,7 +43,9 @@ export async function createPatient(dto: CreatePatientDto, createdBy: string): P
   };
 
   await ref.set(patient);
-  return getPatient(ref.id);
+  const created = await getPatient(ref.id);
+  notifyDoctorsNewPatient(created);
+  return created;
 }
 
 export async function listPatients(

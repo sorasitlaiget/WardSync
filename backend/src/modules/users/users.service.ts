@@ -65,6 +65,13 @@ export async function listUsers(): Promise<UserProfile[]> {
   return snapshot.docs.map((doc) => ({ uid: doc.id, ...doc.data() }) as UserProfile);
 }
 
+export async function updateFcmToken(uid: string, fcmToken: string): Promise<void> {
+  await db().collection(USERS).doc(uid).update({
+    fcmToken,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+}
+
 export async function updateUserRole(uid: string, dto: UpdateUserRoleDto): Promise<UserProfile> {
   const doc = await db().collection(USERS).doc(uid).get();
   if (!doc.exists) throw new NotFoundError('User not found');

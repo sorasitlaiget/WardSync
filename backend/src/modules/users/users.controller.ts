@@ -40,6 +40,16 @@ export async function listUsers(req: Request, res: Response, next: NextFunction)
   }
 }
 
+export async function updateFcmToken(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { fcmToken } = req.body;
+    await usersService.updateFcmToken(req.user!.uid, fcmToken);
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function updateUserRole(req: Request, res: Response, next: NextFunction) {
   try {
     const { uid } = req.params;
