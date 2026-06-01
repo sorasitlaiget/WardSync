@@ -7,6 +7,7 @@ const router = Router();
 
 // ── Patients ─────────────────────────────────────────────────
 router.post('/', authenticate, requireRole('nurse'), uploadMiddleware, ctrl.createPatient);
+router.get('/stats', authenticate, requireRole('admin'), ctrl.getPatientStats);
 router.get('/', authenticate, requireRole('nurse', 'doctor', 'admin'), ctrl.listPatients);
 router.get('/:id', authenticate, requireRole('nurse', 'doctor', 'admin'), ctrl.getPatient);
 router.patch('/:id/status', authenticate, requireRole('doctor'), ctrl.updatePatientStatus);

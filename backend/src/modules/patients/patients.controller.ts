@@ -24,13 +24,20 @@ export async function listPatients(req: Request, res: Response, next: NextFuncti
     const user = req.user!;
     const queryRoom = req.query.room as string | undefined;
     const status = req.query.status as string | undefined;
+    const triageColor = req.query.triageColor as TriageRoom | undefined;
     let room: TriageRoom | 'all' | undefined;
     if (user.role === 'doctor') {
       room = queryRoom === 'all' ? 'all' : (user.assignedRoom as TriageRoom);
     } else {
       room = queryRoom as TriageRoom | 'all' | undefined;
     }
-    res.json(await svc.listPatients(room, status));
+    res.json(await svc.listPatients(room, status, triageColor));
+  } catch (err) { next(err); }
+}
+
+export async function getPatientStats(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await svc.getPatientStats());
   } catch (err) { next(err); }
 }
 

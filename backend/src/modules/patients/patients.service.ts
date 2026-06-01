@@ -53,18 +53,42 @@ export async function createPatient(dto: CreatePatientDto, createdBy: string): P
 
 export async function listPatients(
   room?: TriageRoom | 'all',
-  status?: string
+  status?: string,
+  triageColor?: TriageRoom
 ): Promise<{ patients: Patient[]; total: number }> {
   let query: FirebaseFirestore.Query = db().collection(PATIENTS);
 
   if (room && room !== 'all') query = query.where('assignedRoom', '==', room);
   if (status) query = query.where('status', '==', status);
+  if (triageColor) query = query.where('triageColor', '==', triageColor);
 
   query = query.orderBy('createdAt', 'desc');
 
   const snapshot = await query.get();
   const patients = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as Patient);
   return { patients, total: patients.length };
+}
+
+export async function getPatientStats(): Promise<{
+  total: number;
+  byColor: Record<string, number>;
+  byRoom: Record<string, number>;
+  byStatus: Record<string, number>;
+}> {
+  const snapshot = await db().collection(PATIENTS).get();
+
+  const byColor: Record<string, number> = { red: 0, yellow: 0, green: 0, black: 0 };
+  const byRoom: Record<string, number> = { red: 0, yellow: 0, green: 0, black: 0 };
+  const byStatus: Record<string, number> = { waiting: 0, inTreatment: 0, discharged: 0, deceased: 0 };
+
+  snapshot.docs.forEach((doc) => {
+    const data = doc.data();
+    if (data.triageColor in byColor) byColor[data.triageColor]++;
+    if (data.assignedRoom in byRoom) byRoom[data.assignedRoom]++;
+    if (data.status in byStatus) byStatus[data.status]++;
+  });
+
+  return { total: snapshot.size, byColor, byRoom, byStatus };
 }
 
 export async function getPatient(id: string): Promise<Patient> {
