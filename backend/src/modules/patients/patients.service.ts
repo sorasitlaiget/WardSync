@@ -1,6 +1,7 @@
 import { db, FieldValue, Timestamp } from '../../config/firebase.config';
 import { NotFoundError, BadRequestError, ConflictError } from '../../core/utils/error';
-import { notifyDoctorsNewPatient } from '../../core/utils/notification';
+import { notifyDoctorsNewPatient, notifyDoctorVitalAlert } from '../../core/utils/notification';
+import { checkVitalThresholds, hasAlerts } from '../../core/utils/vitals-threshold';
 import {
   Patient,
   VitalSigns,
@@ -122,7 +123,7 @@ export async function addVitalSigns(
   patientId: string,
   dto: AddVitalSignsDto,
   recordedBy: string
-): Promise<VitalSigns> {
+): Promise<VitalSigns & { alerts: ReturnType<typeof checkVitalThresholds> }> {
   const doc = await db().collection(PATIENTS).doc(patientId).get();
   if (!doc.exists) throw new NotFoundError('Patient not found');
 
@@ -131,7 +132,13 @@ export async function addVitalSigns(
   await ref.set(vital);
   await db().collection(PATIENTS).doc(patientId).update({ updatedAt: FieldValue.serverTimestamp() });
 
-  return { id: ref.id, ...vital } as VitalSigns;
+  const alerts = checkVitalThresholds(dto);
+  if (hasAlerts(alerts)) {
+    const patient = await getPatient(patientId);
+    notifyDoctorVitalAlert(patient, alerts);
+  }
+
+  return { id: ref.id, ...vital, alerts } as VitalSigns & { alerts: ReturnType<typeof checkVitalThresholds> };
 }
 
 export async function listVitalSigns(patientId: string): Promise<VitalSigns[]> {
@@ -150,14 +157,21 @@ export async function updateVitalSigns(
   patientId: string,
   vitalId: string,
   dto: UpdateVitalSignsDto
-): Promise<VitalSigns> {
+): Promise<VitalSigns & { alerts: ReturnType<typeof checkVitalThresholds> }> {
   const ref = db().collection(PATIENTS).doc(patientId).collection(VITALS).doc(vitalId);
   const doc = await ref.get();
   if (!doc.exists) throw new NotFoundError('Vital signs record not found');
 
   await ref.update({ ...dto });
+
+  const alerts = checkVitalThresholds(dto);
+  if (hasAlerts(alerts)) {
+    const patient = await getPatient(patientId);
+    notifyDoctorVitalAlert(patient, alerts);
+  }
+
   const updated = await ref.get();
-  return { id: ref.id, ...updated.data() } as VitalSigns;
+  return { id: ref.id, ...updated.data(), alerts } as VitalSigns & { alerts: ReturnType<typeof checkVitalThresholds> };
 }
 
 export async function deleteVitalSigns(patientId: string, vitalId: string): Promise<void> {
