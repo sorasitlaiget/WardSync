@@ -5,16 +5,22 @@ import { uploadMiddleware } from './patients.upload';
 
 const router = Router();
 
-// nurse สร้าง patient (พร้อมรูปถ้ามี)
+// ── Patients ─────────────────────────────────────────────────
 router.post('/', authenticate, requireRole('nurse'), uploadMiddleware, ctrl.createPatient);
-
-// ทุก role ดูได้
 router.get('/', authenticate, requireRole('nurse', 'doctor', 'admin'), ctrl.listPatients);
 router.get('/:id', authenticate, requireRole('nurse', 'doctor', 'admin'), ctrl.getPatient);
-
-// doctor เท่านั้น
 router.patch('/:id/status', authenticate, requireRole('doctor'), ctrl.updatePatientStatus);
-router.post('/:id/vitals', authenticate, requireRole('doctor'), ctrl.addVitalSigns);
+
+// ── Vital Signs ──────────────────────────────────────────────
+router.post('/:id/vitals', authenticate, requireRole('nurse', 'doctor'), ctrl.addVitalSigns);
+router.get('/:id/vitals', authenticate, requireRole('nurse', 'doctor', 'admin'), ctrl.listVitalSigns);
+router.patch('/:id/vitals/:vitalId', authenticate, requireRole('nurse', 'doctor'), ctrl.updateVitalSigns);
+router.delete('/:id/vitals/:vitalId', authenticate, requireRole('nurse', 'doctor'), ctrl.deleteVitalSigns);
+
+// ── Treatments ───────────────────────────────────────────────
 router.post('/:id/treatments', authenticate, requireRole('doctor'), ctrl.addTreatment);
+router.get('/:id/treatments', authenticate, requireRole('nurse', 'doctor', 'admin'), ctrl.listTreatments);
+router.patch('/:id/treatments/:treatmentId', authenticate, requireRole('doctor'), ctrl.updateTreatment);
+router.delete('/:id/treatments/:treatmentId', authenticate, requireRole('doctor'), ctrl.deleteTreatment);
 
 export default router;

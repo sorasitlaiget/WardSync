@@ -5,6 +5,7 @@ export type Sex = 'male' | 'female';
 export type AgeRange = 'infant' | 'child' | 'adult' | 'elder';
 
 export interface VitalSigns {
+  id: string;
   bloodPressure: string;
   heartRate: number;
   respiratoryRate: number;
@@ -15,6 +16,7 @@ export interface VitalSigns {
 }
 
 export interface Treatment {
+  id: string;
   diagnosis: string;
   treatment: string;
   notes?: string;
@@ -26,13 +28,12 @@ export interface Patient {
   id: string;
   wristbandNumber: string;
   triageColor: TriageRoom;
-  photoUrl?: string;
+  photoUrl: string | null;
   sex: Sex;
   ageRange: AgeRange;
   status: PatientStatus;
   assignedRoom: TriageRoom;
-  vitalSigns: VitalSigns[];
-  treatments: Treatment[];
+  statusHistory: StatusLog[];
   createdBy: string;
   createdAt: FirebaseFirestore.Timestamp;
   updatedAt: FirebaseFirestore.Timestamp;
@@ -44,6 +45,12 @@ export interface CreatePatientDto {
   photoUrl?: string;
   sex: Sex;
   ageRange: AgeRange;
+}
+
+export interface StatusLog {
+  status: PatientStatus;
+  changedBy: string;
+  changedAt: FirebaseFirestore.Timestamp;
 }
 
 export interface UpdatePatientStatusDto {
@@ -61,5 +68,19 @@ export interface AddVitalSignsDto {
 export interface AddTreatmentDto {
   diagnosis: string;
   treatment: string;
+  notes?: string;
+}
+
+export interface UpdateVitalSignsDto {
+  bloodPressure?: string;
+  heartRate?: number;
+  respiratoryRate?: number;
+  temperature?: number;
+  oxygenSaturation?: number;
+}
+
+export interface UpdateTreatmentDto {
+  diagnosis?: string;
+  treatment?: string;
   notes?: string;
 }
