@@ -1,131 +1,282 @@
-# WardSync Backend API — Integration Guide
+# WardSync Backend — Integration Guide
 
-Base URL (dev): `http://localhost:3000`  
-Auth: Bearer Token (Firebase ID Token) ใส่ใน header ทุก request
+## What is WardSync?
+
+WardSync is a real-time field hospital management system. It handles patient triage, vital signs monitoring, treatment records, medication inventory, and room capacity tracking. The backend is built with **Express.js + TypeScript + Firebase (Firestore, Auth, Storage, FCM)**.
+
+This document is written for the Flutter frontend team. If you are using an AI assistant to help you integrate, share this entire file as context.
+
+---
+
+## Base URLs
+
+| Environment | URL |
+|-------------|-----|
+| Local (emulator) | `http://localhost:3000` |
+| Production | TBD |
+
+---
+
+## Authentication
+
+Every request (except login) requires a Firebase ID Token in the Authorization header:
 
 ```
 Authorization: Bearer <idToken>
 ```
 
----
+### How to get a token (Login)
 
-## Role Permissions
-
-| Action | nurse | doctor | admin |
-|--------|-------|--------|-------|
-| สร้าง patient | ✅ | ❌ | ❌ |
-| ดู patient list | ✅ | ✅ (เฉพาะห้องตัวเอง) | ✅ |
-| ดู patient detail | ✅ | ✅ | ✅ |
-| เปลี่ยน patient status | ❌ | ✅ | ❌ |
-| บันทึก vital signs | ✅ | ✅ | ❌ |
-| บันทึก treatment | ❌ | ✅ | ❌ |
-| จัดการ medication inventory | ❌ | ❌ | ✅ |
-| ดู medication list | ✅ | ✅ | ✅ |
-| ดู room capacity | ✅ | ✅ | ✅ |
-| ตั้งค่า room capacity | ❌ | ❌ | ✅ |
-| ดู stats/charts | ❌ | ❌ | ✅ |
-| จัดการ users | ❌ | ❌ | ✅ |
-
-> **หมายเหตุ**: Doctor เห็น patient เฉพาะห้องที่ assign ไว้ ถ้าอยาก override ส่ง `?room=all`
-
----
-
-## F1 — Authentication & User Management
-
-### Login
 ```
 POST http://localhost:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=fake-key
-Body: { "email": "...", "password": "...", "returnSecureToken": true }
-Response: { "idToken": "..." }  ← ใช้ token นี้ใส่ใน Authorization header
+
+Body (JSON):
+{
+  "email": "user@example.com",
+  "password": "password123",
+  "returnSecureToken": true
+}
+
+Response:
+{
+  "idToken": "eyJhbGci..."   ← use this as Bearer token
+}
 ```
 
-### Profile
-```
-GET    /api/users/profile          — ดู profile ตัวเอง
-PATCH  /api/users/profile          — กรอก profile ครั้งแรก (completeProfile)
-PATCH  /api/users/fcm-token        — อัพเดท FCM token { "fcmToken": "..." }
-```
+> In production, use the real Firebase Auth SDK in Flutter (`signInWithEmailAndPassword`). The `idToken` is obtained via `user.getIdToken()`.
 
-### Admin — จัดการ Users
-```
-GET    /api/users                  — list users ทั้งหมด
-POST   /api/users                  — สร้าง user ใหม่
-PATCH  /api/users/:uid/role        — เปลี่ยน role/assignedRoom
-```
+### First-time login flow
 
-**CompleteProfile body:**
-```json
-{ "displayName": "นายแพทย์ สมชาย", "role": "doctor", "assignedRoom": "red" }
-```
-
-> nurse ไม่มี assignedRoom — doctor และ admin ต้องมี assignedRoom
+1. User logs in → gets `idToken`
+2. Call `GET /api/users/profile`
+3. If response has `isProfileComplete: false` → redirect to profile setup screen
+4. User fills in name, role, assigned room → `PATCH /api/users/profile`
+5. After profile is complete → proceed to main app
 
 ---
 
-## F2 & F3 — Patient Registration & List
+## Roles & Permissions
 
-### สร้าง Patient (nurse only) — multipart/form-data
+There are 3 roles: `nurse`, `doctor`, `admin`.
+
+| Endpoint / Action | nurse | doctor | admin |
+|---|:---:|:---:|:---:|
+| View own profile | ✅ | ✅ | ✅ |
+| Complete profile | ✅ | ✅ | ✅ |
+| Update FCM token | ✅ | ✅ | ✅ |
+| List all users | ❌ | ❌ | ✅ |
+| Create user account | ❌ | ❌ | ✅ |
+| Change user role | ❌ | ❌ | ✅ |
+| Create patient | ✅ | ❌ | ❌ |
+| List patients | ✅ (all rooms) | ✅ (own room only) | ✅ (all rooms) |
+| View patient detail | ✅ | ✅ | ✅ |
+| Change patient status | ❌ | ✅ | ❌ |
+| Add / edit vitals | ✅ | ✅ | ❌ |
+| Add / edit treatments | ❌ | ✅ | ❌ |
+| View vitals & treatments | ✅ | ✅ | ✅ |
+| View medication list | ✅ | ✅ | ✅ |
+| Manage medication inventory | ❌ | ❌ | ✅ |
+| View room capacity | ✅ | ✅ | ✅ |
+| Set room capacity | ❌ | ❌ | ✅ |
+| View statistics charts | ❌ | ❌ | ✅ |
+
+> **Doctor room filter**: Doctors automatically see only patients in their assigned room. To see all rooms, add `?room=all`.
+
+> **Nurse**: Does not have an `assignedRoom`. Can see all patients across all rooms.
+
+---
+
+## Error Response Format
+
+All errors follow this format:
+
+```json
+{
+  "statusCode": 404,
+  "error": "Not Found",
+  "message": "Patient not found"
+}
+```
+
+| Status Code | Meaning |
+|---|---|
+| 400 | Bad Request — invalid or missing fields |
+| 401 | Unauthorized — missing or expired token |
+| 403 | Forbidden — role does not have permission |
+| 404 | Not Found |
+| 409 | Conflict — e.g. wristband number already in use |
+
+---
+
+## User Management (F1)
+
+### Get my profile
+```
+GET /api/users/profile
+
+Response:
+{
+  "uid": "abc123",
+  "email": "nurse@hospital.com",
+  "displayName": "Nurse Anna",
+  "role": "nurse",
+  "assignedRoom": null,
+  "isProfileComplete": true,
+  "fcmToken": "..."
+}
+```
+
+### Complete / update profile
+```
+PATCH /api/users/profile
+
+Body:
+{
+  "displayName": "Dr. Smith",
+  "role": "doctor",
+  "assignedRoom": "red"
+}
+```
+
+> `assignedRoom` is required for `doctor` and `admin`. Valid values: `red`, `yellow`, `green`, `black`.  
+> `nurse` does not need `assignedRoom`.
+
+### Update FCM token (call this on every app launch)
+```
+PATCH /api/users/fcm-token
+
+Body:
+{ "fcmToken": "<token from Firebase Messaging>" }
+```
+
+### Admin: List all users
+```
+GET /api/users
+```
+
+### Admin: Create a new user account
+```
+POST /api/users
+
+Body:
+{
+  "email": "doctor@hospital.com",
+  "password": "initial123",
+  "displayName": "Dr. Smith",
+  "role": "doctor",
+  "assignedRoom": "red"
+}
+```
+
+### Admin: Change user role
+```
+PATCH /api/users/:uid/role
+
+Body:
+{
+  "role": "doctor",
+  "assignedRoom": "yellow"
+}
+```
+
+---
+
+## Patient Management (F2, F3, F5)
+
+### Create patient (nurse only) — multipart/form-data
 ```
 POST /api/patients
-Fields: wristbandNumber, triageColor (red|yellow|green|black), sex (male|female),
-        ageRange (infant|child|adult|elder)
-File:   photo (optional, field name: "photo")
+Content-Type: multipart/form-data
+
+Fields:
+  wristbandNumber  string   e.g. "003"
+  triageColor      string   red | yellow | green | black
+  sex              string   male | female
+  ageRange         string   infant | child | adult | elder
+
+File (optional):
+  photo            image file (jpg/png)
+
+Response: Patient object (see below)
 ```
 
-### List & Filter Patients
+### Patient object structure
+```json
+{
+  "id": "abc123",
+  "wristbandNumber": "003",
+  "triageColor": "red",
+  "sex": "male",
+  "ageRange": "adult",
+  "status": "waiting",
+  "assignedRoom": "red",
+  "photoUrl": "https://storage.../photo.jpg",
+  "statusHistory": [
+    { "status": "waiting", "changedBy": "uid", "changedAt": "timestamp" }
+  ],
+  "createdBy": "uid",
+  "createdAt": "timestamp",
+  "updatedAt": "timestamp"
+}
+```
+
+### List patients (with filters)
 ```
 GET /api/patients
-Query params:
-  ?room=red|yellow|green|black|all
-  ?status=waiting|inTreatment|discharged|deceased
-  ?triageColor=red|yellow|green|black
-  ?wristband=003          ← prefix search (F10)
-  ?today=true             ← เฉพาะวันนี้ (F10)
-  ?fromTime=2026-06-01T08:00:00Z&toTime=2026-06-01T17:00:00Z  ← custom range (F10)
+
+Query parameters (all optional, can be combined):
+  room=red|yellow|green|black|all
+  status=waiting|inTreatment|discharged|deceased
+  triageColor=red|yellow|green|black
+  wristband=00           ← prefix search, e.g. finds "001", "003", "009"
+  today=true             ← only patients admitted today
+  fromTime=2026-06-01T08:00:00Z
+  toTime=2026-06-01T17:00:00Z
+
+Response:
+{
+  "patients": [ ...Patient objects ],
+  "total": 10
+}
 ```
 
-### Patient Detail & Status
+### Get single patient
 ```
-GET   /api/patients/:id
-PATCH /api/patients/:id/status     — { "status": "inTreatment" } (doctor only)
+GET /api/patients/:id
 ```
 
-**Patient Status flow:** `waiting` → `inTreatment` → `discharged` หรือ `deceased`
+### Change patient status (doctor only)
+```
+PATCH /api/patients/:id/status
+
+Body:
+{ "status": "inTreatment" }
+
+Valid status flow: waiting → inTreatment → discharged | deceased
+```
+
+### Admin: Get patient counts summary
+```
+GET /api/patients/stats
+
+Response:
+{
+  "total": 10,
+  "byColor":  { "red": 5, "yellow": 3, "green": 2, "black": 0 },
+  "byRoom":   { "red": 5, "yellow": 3, "green": 2, "black": 0 },
+  "byStatus": { "waiting": 4, "inTreatment": 3, "discharged": 2, "deceased": 1 }
+}
+```
 
 ---
 
-## F4 — Push Notifications (FCM)
+## Vital Signs (F5, F7)
 
-Backend ส่ง FCM อัตโนมัติ ไม่ต้องเรียก endpoint:
-
-| Event | ส่งถึงใคร |
-|-------|-----------|
-| สร้าง patient ใหม่ | Doctor ทุกคนในห้องเดียวกัน |
-| vital signs เกิน threshold | Doctor ทุกคนในห้องเดียวกัน |
-| stock ต่ำกว่า threshold / หมด | Admin ทุกคน |
-
-**Flutter ต้องทำ:**
-1. ขอ FCM permission จาก user
-2. Get FCM token แล้ว PATCH `/api/users/fcm-token`
-3. Handle incoming notification payload:
-   - `type: "new_patient"` → patientId ใน data
-   - `type: "vital_alert"` → patientId ใน data
-   - `type: "low_stock"` / `"out_of_stock"` → medicationId ใน data
-
----
-
-## F5 — Patient Detail: Vitals & Treatments
-
-### Vital Signs
+### Add vitals
 ```
-POST   /api/patients/:id/vitals              — บันทึก vitals ใหม่
-GET    /api/patients/:id/vitals              — list vitals ทั้งหมด
-PATCH  /api/patients/:id/vitals/:vitalId     — แก้ vitals
-DELETE /api/patients/:id/vitals/:vitalId     — ลบ
-```
+POST /api/patients/:id/vitals
 
-**POST/PATCH body:**
-```json
+Body:
 {
   "bloodPressure": "120/80",
   "heartRate": 75,
@@ -133,155 +284,273 @@ DELETE /api/patients/:id/vitals/:vitalId     — ลบ
   "oxygenSaturation": 98,
   "respiratoryRate": 16
 }
+
+Response includes an "alerts" field:
+{
+  "id": "vitalId",
+  "heartRate": 30,
+  ...
+  "alerts": {
+    "heartRate": "HR critical: 30 bpm"
+  }
+}
 ```
 
-**Response** มี `alerts` field บอก field ไหน critical:
-```json
-{ "heartRate": 30, ..., "alerts": { "heartRate": "HR critical: 30 bpm" } }
-```
-> ใช้ `alerts` เพื่อแสดงสีแดงใน UI (T2.3)
+> If `alerts` is not empty `{}`, highlight those fields in **red** in the UI.  
+> A FCM push notification is also automatically sent to the doctor in the same room.
 
-### Treatments
+### Critical thresholds (auto-checked on save)
+
+| Vital | Critical Range |
+|---|---|
+| Blood Pressure | systolic < 90 or > 180 / diastolic < 60 or > 120 |
+| Heart Rate | < 40 or > 150 bpm |
+| Temperature | < 35 or > 39.5 °C |
+| SpO2 | < 90% |
+| Respiratory Rate | < 8 or > 30 /min |
+
+### List vitals
 ```
-POST   /api/patients/:id/treatments              — บันทึก treatment (doctor only)
-GET    /api/patients/:id/treatments
-PATCH  /api/patients/:id/treatments/:treatmentId
-DELETE /api/patients/:id/treatments/:treatmentId
+GET /api/patients/:id/vitals
 ```
 
-**POST body:**
-```json
+### Update vitals (partial update — only send fields you want to change)
+```
+PATCH /api/patients/:id/vitals/:vitalId
+
+Body (all fields optional):
+{
+  "heartRate": 85,
+  "temperature": 37.5
+}
+```
+
+### Delete vitals
+```
+DELETE /api/patients/:id/vitals/:vitalId
+```
+
+---
+
+## Treatments (F5)
+
+### Add treatment (doctor only)
+```
+POST /api/patients/:id/treatments
+
+Body:
 {
   "diagnosis": "Suspected sepsis",
   "treatment": "Fluid resuscitation",
   "notes": "Monitor BP every 15 min",
   "medications": [
-    { "medicationId": "<id>", "dosage": "500ml IV bolus" }
+    { "medicationId": "<id from medication list>", "dosage": "500ml IV bolus" }
   ]
 }
 ```
 
----
+> `medications` is optional. When provided, stock is automatically decremented.  
+> If a medication is `outOfStock`, the request will be rejected with a 400 error.
 
-## F6 — Admin Dashboard Stats
-
+### List treatments
 ```
-GET /api/patients/stats
-Response:
+GET /api/patients/:id/treatments
+
+Response: array of Treatment objects
 {
-  "total": 10,
-  "byColor": { "red": 9, "yellow": 0, "green": 0, "black": 1 },
-  "byRoom":  { "red": 9, "yellow": 0, "green": 0, "black": 1 },
-  "byStatus": { "waiting": 5, "inTreatment": 3, "discharged": 2, "deceased": 0 }
+  "id": "...",
+  "diagnosis": "...",
+  "treatment": "...",
+  "notes": "...",
+  "medications": [
+    { "medicationId": "...", "name": "Normal Saline", "dosage": "500ml IV bolus" }
+  ],
+  "recordedBy": "uid",
+  "recordedAt": "timestamp"
 }
 ```
 
----
-
-## F7 — Vital Signs Alert
-
-อัตโนมัติเมื่อ POST/PATCH vitals — ค่า threshold:
-
-| Vital | Critical |
-|-------|----------|
-| Blood Pressure | systolic < 90 หรือ > 180 / diastolic < 60 หรือ > 120 |
-| Heart Rate | < 40 หรือ > 150 bpm |
-| Temperature | < 35 หรือ > 39.5 °C |
-| SpO2 | < 90% |
-| Respiratory Rate | < 8 หรือ > 30 /min |
-
----
-
-## F8 — Medication Inventory
-
-### Admin — จัดการ Inventory
+### Update treatment
 ```
-POST   /api/medications              — { "name": "Normal Saline", "dosage": "500ml IV bolus", "quantity": 50, "lowStockThreshold": 10 }
-GET    /api/medications?search=sal   — list + search by name
-GET    /api/medications/:id
-PATCH  /api/medications/:id          — แก้ name/dosage/threshold
-DELETE /api/medications/:id
-PATCH  /api/medications/:id/stock    — { "delta": 10 } หรือ { "delta": -5 }
+PATCH /api/patients/:id/treatments/:treatmentId
+
+Body (all optional):
+{ "diagnosis": "Updated diagnosis", "notes": "New note" }
 ```
 
-**Medication status:**
-- `inStock` — ปกติ
-- `lowStock` — ≤ lowStockThreshold (FCM แจ้ง admin)
-- `outOfStock` — quantity = 0 (FCM แจ้ง admin + ไม่สามารถสั่งได้)
-
-**Flutter ต้องทำ:** GET `/api/medications` ก่อนแสดง medication picker ใน treatment form
+### Delete treatment
+```
+DELETE /api/patients/:id/treatments/:treatmentId
+```
 
 ---
 
-## F9 — Room Capacity
+## Push Notifications (F4)
 
-```
-GET /api/rooms/capacity              — ทุกห้อง
-GET /api/rooms/capacity/:room        — ห้องเดียว (red|yellow|green|black)
-PUT /api/rooms/capacity/:room        — { "maxCapacity": 10 } (admin only)
-```
+Backend sends FCM automatically. Flutter must:
 
-**Response:**
-```json
-{ "room": "red", "current": 8, "maxCapacity": 10, "percentage": 80, "warning": "nearFull" }
-```
+1. Request notification permission from user
+2. Get FCM token: `FirebaseMessaging.instance.getToken()`
+3. Send token to backend: `PATCH /api/users/fcm-token`
+4. Refresh token when it rotates: `FirebaseMessaging.instance.onTokenRefresh`
 
-**warning levels:**
-- `normal` — < 80%
-- `nearFull` — ≥ 80% (แสดงสีเหลือง)
-- `full` — ≥ 95% (แสดงสีแดง)
+### Notification types and payload
 
----
-
-## F10 — Search & Filter
-
-ดูส่วน **List & Filter Patients** ด้านบน — รองรับ combine หลาย params พร้อมกัน
+| `type` in data | Trigger | Navigate to |
+|---|---|---|
+| `new_patient` | New patient admitted in doctor's room | Patient detail screen (use `patientId`) |
+| `vital_alert` | Critical vital sign recorded | Patient vitals screen (use `patientId`) |
+| `low_stock` | Medication stock ≤ threshold | Medication inventory screen (use `medicationId`) |
+| `out_of_stock` | Medication quantity = 0 | Medication inventory screen (use `medicationId`) |
 
 ---
 
-## F11 — Statistics Charts
+## Medication Inventory (F8)
 
+### List medications (all roles)
 ```
-GET /api/stats/charts?days=7
-GET /api/stats/charts?fromDate=2026-06-01&toDate=2026-06-01
-```
+GET /api/medications
+GET /api/medications?search=saline    ← search by name
 
-**Response:**
-```json
+Response: array of:
 {
-  "patientsPerDay": [{ "date": "2026-06-01", "count": 10 }],
-  "byColor": { "red": 9, "yellow": 0, "green": 0, "black": 1 },
-  "mortalityRate": [{ "date": "2026-06-01", "deceased": 0, "total": 10, "rate": 0 }],
+  "id": "...",
+  "name": "Normal Saline",
+  "dosage": "500ml IV bolus",
+  "quantity": 45,
+  "lowStockThreshold": 10,
+  "status": "inStock",    ← inStock | lowStock | outOfStock
+  "createdAt": "...",
+  "updatedAt": "..."
+}
+```
+
+### Get single medication
+```
+GET /api/medications/:id
+```
+
+### Admin: Create medication
+```
+POST /api/medications
+
+Body:
+{
+  "name": "Normal Saline",
+  "dosage": "500ml IV bolus",
+  "quantity": 100,
+  "lowStockThreshold": 10
+}
+```
+
+> `lowStockThreshold` is optional, defaults to 10.
+
+### Admin: Update medication details
+```
+PATCH /api/medications/:id
+
+Body (all optional):
+{
+  "name": "Updated Name",
+  "dosage": "250ml IV",
+  "lowStockThreshold": 15
+}
+```
+
+### Admin: Update stock count
+```
+PATCH /api/medications/:id/stock
+
+Body:
+{ "delta": 50 }    ← positive = add stock, negative = remove stock
+
+Response: updated Medication object
+```
+
+### Admin: Delete medication
+```
+DELETE /api/medications/:id
+```
+
+---
+
+## Room Capacity (F9)
+
+### Get all rooms capacity
+```
+GET /api/rooms/capacity
+
+Response: array of:
+{
+  "room": "red",
+  "current": 8,
+  "maxCapacity": 10,
+  "percentage": 80,
+  "warning": "nearFull"   ← normal | nearFull | full
+}
+```
+
+| Warning | Condition | Display |
+|---|---|---|
+| `normal` | < 80% | No indicator |
+| `nearFull` | ≥ 80% | Yellow warning |
+| `full` | ≥ 95% | Red warning |
+
+### Get single room
+```
+GET /api/rooms/capacity/:room
+```
+
+### Admin: Set room capacity
+```
+PUT /api/rooms/capacity/:room
+
+Body:
+{ "maxCapacity": 15 }
+```
+
+---
+
+## Statistics Charts (F11)
+
+```
+GET /api/stats/charts              ← default: last 7 days
+GET /api/stats/charts?days=30
+GET /api/stats/charts?fromDate=2026-06-01&toDate=2026-06-07
+
+Response:
+{
+  "patientsPerDay": [
+    { "date": "2026-05-26", "count": 3 },
+    { "date": "2026-05-27", "count": 5 },
+    ...
+  ],
+  "byColor": {
+    "red": 9, "yellow": 3, "green": 5, "black": 1
+  },
+  "mortalityRate": [
+    { "date": "2026-05-26", "deceased": 1, "total": 3, "rate": 0.333 }
+  ],
   "avgResponseTimeMinutes": 54.5
 }
 ```
 
----
-
-## Error Format
-
-```json
-{ "error": "Not Found", "message": "Patient not found", "statusCode": 404 }
-```
-
-| Code | ความหมาย |
-|------|----------|
-| 400 | Bad Request — ข้อมูลไม่ถูกต้อง |
-| 401 | Unauthorized — token หมดอายุหรือไม่มี |
-| 403 | Forbidden — role ไม่มีสิทธิ์ |
-| 404 | Not Found |
-| 409 | Conflict — wristband ซ้ำ |
+> All dates are in **UTC**. Convert to local time before displaying.
 
 ---
 
-## Checklist สำหรับ Integrator
+## Frontend Integration Checklist
 
-- [ ] ติดตั้ง Firebase (google-services.json / GoogleService-Info.plist)
-- [ ] Login → เก็บ idToken → ใส่ใน Authorization header ทุก request
-- [ ] ตอน app start → GET `/api/users/profile` เช็คว่า profile complete แล้วหรือยัง
-- [ ] ถ้า profile ยังไม่ครบ → route ไป complete profile screen
-- [ ] ขอ FCM permission → PATCH `/api/users/fcm-token`
-- [ ] Handle FCM notification และ navigate ตาม `type` ใน data payload
-- [ ] GET `/api/medications` ก่อนแสดง treatment form
-- [ ] ใช้ `alerts` field จาก vitals response แสดงสีแดงใน UI
-- [ ] ใช้ `warning` field จาก room capacity แสดง color indicator
+Complete these in order before testing any feature:
+
+- [ ] Add `google-services.json` (Android) / `GoogleService-Info.plist` (iOS) to Flutter project
+- [ ] Implement login screen → call Firebase Auth → store `idToken`
+- [ ] On every app launch: `GET /api/users/profile`
+  - If `isProfileComplete: false` → show profile setup screen
+  - If complete → route by role (`nurse`, `doctor`, `admin`)
+- [ ] After profile check: get FCM token → `PATCH /api/users/fcm-token`
+- [ ] Set up FCM `onMessage` and `onMessageOpenedApp` handlers (see Notification Types above)
+- [ ] Before showing treatment form: fetch `GET /api/medications` for the medication picker
+- [ ] When displaying vitals: check `alerts` field → show critical fields in red
+- [ ] When displaying room status: map `warning` field to UI color (`normal`=green, `nearFull`=yellow, `full`=red)
+- [ ] Admin stats screen: call `GET /api/stats/charts?days=7` and map to chart widgets
