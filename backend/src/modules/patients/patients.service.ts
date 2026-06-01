@@ -29,7 +29,7 @@ export async function createPatient(dto: CreatePatientDto, createdBy: string): P
   const patient = {
     wristbandNumber: dto.wristbandNumber,
     triageColor: dto.triageColor,
-    ...(dto.photoUrl && { photoUrl: dto.photoUrl }),
+    photoUrl: dto.photoUrl ?? null,
     sex: dto.sex,
     ageRange: dto.ageRange,
     status: 'waiting' as const,
