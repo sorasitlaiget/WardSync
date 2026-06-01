@@ -2,7 +2,7 @@
   "name": "wardsync",
   "private": true,
   "scripts": {
-    "emulator": "firebase emulators:start --project wardsync-8ef10",
+    "emulator": "firebase emulators:start --project wardsync-8ef10 --import=./emulator-data --export-on-exit=./emulator-data",
     "backend": "npm --prefix backend run dev",
     "dev": "concurrently \"npm run emulator\" \"npm run backend\""
   },

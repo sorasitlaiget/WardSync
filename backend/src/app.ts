@@ -6,6 +6,7 @@ import { env } from './config/env.config';
 import { errorHandler, notFoundHandler } from './middleware/error-handler.middleware';
 import { logger } from './core/utils/logger';
 import usersRoutes from './modules/users/users.routes';
+import patientsRoutes from './modules/patients/patients.routes';
 
 export function createApp(): Express {
   const app = express();
@@ -52,7 +53,7 @@ export function createApp(): Express {
 
   // Routes
   app.use('/api/users', usersRoutes);
-  // app.use('/api/patients', patientRoutes);
+  app.use('/api/patients', patientsRoutes);
   // app.use('/api/vital-signs', vitalSignsRoutes);
   // app.use('/api/treatments', treatmentRoutes);
   // app.use('/api/notifications', notificationRoutes);
