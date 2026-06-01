@@ -45,16 +45,20 @@ export async function createPatient(dto: CreatePatientDto, createdBy: string): P
   return getPatient(ref.id);
 }
 
-export async function listPatients(room?: TriageRoom, status?: string): Promise<Patient[]> {
+export async function listPatients(
+  room?: TriageRoom | 'all',
+  status?: string
+): Promise<{ patients: Patient[]; total: number }> {
   let query: FirebaseFirestore.Query = db().collection(PATIENTS);
 
-  if (room) query = query.where('assignedRoom', '==', room);
+  if (room && room !== 'all') query = query.where('assignedRoom', '==', room);
   if (status) query = query.where('status', '==', status);
 
   query = query.orderBy('createdAt', 'desc');
 
   const snapshot = await query.get();
-  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as Patient);
+  const patients = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as Patient);
+  return { patients, total: patients.length };
 }
 
 export async function getPatient(id: string): Promise<Patient> {

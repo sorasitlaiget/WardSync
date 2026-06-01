@@ -24,10 +24,22 @@ export async function createPatient(req: Request, res: Response, next: NextFunct
 
 export async function listPatients(req: Request, res: Response, next: NextFunction) {
   try {
-    const room = req.query.room as TriageRoom | undefined;
+    const user = req.user!;
+    const queryRoom = req.query.room as string | undefined;
     const status = req.query.status as string | undefined;
-    const patients = await patientsService.listPatients(room, status);
-    res.json(patients);
+
+    let room: TriageRoom | 'all' | undefined;
+
+    if (user.role === 'doctor') {
+      // doctor default เห็นแค่ห้องตัวเอง เว้นแต่ส่ง ?room=all
+      room = queryRoom === 'all' ? 'all' : (user.assignedRoom as TriageRoom);
+    } else {
+      // nurse, admin เห็นทั้งหมด หรือ filter ตาม ?room=
+      room = queryRoom as TriageRoom | 'all' | undefined;
+    }
+
+    const result = await patientsService.listPatients(room, status);
+    res.json(result);
   } catch (err) {
     next(err);
   }
