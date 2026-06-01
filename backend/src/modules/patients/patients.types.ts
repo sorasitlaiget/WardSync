@@ -1,4 +1,5 @@
 import { TriageRoom } from '../users/users.types';
+import { TreatmentMedication } from '../medications/medications.types';
 
 export type PatientStatus = 'waiting' | 'inTreatment' | 'discharged' | 'deceased';
 export type Sex = 'male' | 'female';
@@ -20,6 +21,7 @@ export interface Treatment {
   diagnosis: string;
   treatment: string;
   notes?: string;
+  medications?: TreatmentMedication[];
   recordedAt: FirebaseFirestore.Timestamp;
   recordedBy: string;
 }
@@ -69,6 +71,7 @@ export interface AddTreatmentDto {
   diagnosis: string;
   treatment: string;
   notes?: string;
+  medications?: { medicationId: string; dosage?: string }[];
 }
 
 export interface UpdateVitalSignsDto {

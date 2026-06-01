@@ -14,6 +14,7 @@ import {
   UpdateTreatmentDto,
 } from './patients.types';
 import { TriageRoom } from '../users/users.types';
+import { resolveMedications, decrementStock } from '../medications/medications.service';
 
 const PATIENTS = 'patients';
 const VITALS = 'vitalSigns';
@@ -193,10 +194,18 @@ export async function addTreatment(
 
   if (!dto.diagnosis.trim()) throw new BadRequestError('Diagnosis cannot be empty');
 
+  const medications = dto.medications?.length
+    ? await resolveMedications(dto.medications)
+    : [];
+
   const ref = db().collection(PATIENTS).doc(patientId).collection(TREATMENTS).doc();
-  const treatment = { ...dto, recordedBy, recordedAt: Timestamp.now() };
+  const treatment = { ...dto, medications, recordedBy, recordedAt: Timestamp.now() };
   await ref.set(treatment);
   await db().collection(PATIENTS).doc(patientId).update({ updatedAt: FieldValue.serverTimestamp() });
+
+  for (const med of medications) {
+    await decrementStock(med.medicationId, med.name);
+  }
 
   return { id: ref.id, ...treatment } as Treatment;
 }

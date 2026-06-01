@@ -1,5 +1,6 @@
 import { db, messaging } from '../../config/firebase.config';
 import { Patient, VitalSigns } from '../../modules/patients/patients.types';
+import { Medication } from '../../modules/medications/medications.types';
 import { VitalAlerts } from './vitals-threshold';
 import { logger } from './logger';
 
@@ -72,5 +73,40 @@ export async function notifyDoctorVitalAlert(
     logger.info(`Vital alert sent for patient #${patient.wristbandNumber}`);
   } catch (err) {
     logger.error('Failed to send vital alert:', err);
+  }
+}
+
+export async function notifyAdminLowStock(medication: Medication): Promise<void> {
+  try {
+    const snapshot = await db()
+      .collection('users')
+      .where('role', '==', 'admin')
+      .get();
+
+    const tokens: string[] = snapshot.docs
+      .map((doc) => doc.data().fcmToken)
+      .filter((token): token is string => !!token);
+
+    logger.info(`Stock alert triggered for ${medication.name} (qty: ${medication.quantity}) — ${tokens.length} admin token(s) found`);
+    if (tokens.length === 0) return;
+
+    const isOut = medication.status === 'outOfStock';
+    const title = isOut ? '🚫 Out of Stock' : '⚠️ Low Stock Alert';
+    const body = isOut
+      ? `${medication.name} is out of stock`
+      : `${medication.name} is running low (${medication.quantity} remaining)`;
+
+    await messaging().sendEachForMulticast({
+      tokens,
+      notification: { title, body },
+      data: {
+        medicationId: medication.id,
+        type: isOut ? 'out_of_stock' : 'low_stock',
+      },
+    });
+
+    logger.info(`Stock alert sent for medication: ${medication.name}`);
+  } catch (err) {
+    logger.error('Failed to send stock alert:', err);
   }
 }
