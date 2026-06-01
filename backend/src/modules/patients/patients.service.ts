@@ -56,7 +56,11 @@ export async function createPatient(dto: CreatePatientDto, createdBy: string): P
 export async function listPatients(
   room?: TriageRoom | 'all',
   status?: string,
-  triageColor?: TriageRoom
+  triageColor?: TriageRoom,
+  wristband?: string,
+  today?: boolean,
+  fromTime?: Date,
+  toTime?: Date
 ): Promise<{ patients: Patient[]; total: number }> {
   let query: FirebaseFirestore.Query = db().collection(PATIENTS);
 
@@ -67,7 +71,30 @@ export async function listPatients(
   query = query.orderBy('createdAt', 'desc');
 
   const snapshot = await query.get();
-  const patients = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as Patient);
+  let patients = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as Patient);
+
+  if (wristband) {
+    patients = patients.filter((p) =>
+      p.wristbandNumber.toLowerCase().startsWith(wristband.toLowerCase())
+    );
+  }
+
+  if (today) {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    patients = patients.filter((p) => {
+      const createdAt = (p.createdAt as any).toDate?.() ?? new Date(p.createdAt as any);
+      return createdAt >= startOfDay;
+    });
+  } else if (fromTime || toTime) {
+    patients = patients.filter((p) => {
+      const createdAt = (p.createdAt as any).toDate?.() ?? new Date(p.createdAt as any);
+      if (fromTime && createdAt < fromTime) return false;
+      if (toTime && createdAt > toTime) return false;
+      return true;
+    });
+  }
+
   return { patients, total: patients.length };
 }
 

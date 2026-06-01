@@ -25,13 +25,18 @@ export async function listPatients(req: Request, res: Response, next: NextFuncti
     const queryRoom = req.query.room as string | undefined;
     const status = req.query.status as string | undefined;
     const triageColor = req.query.triageColor as TriageRoom | undefined;
+    const wristband = req.query.wristband as string | undefined;
+    const today = req.query.today === 'true';
+    const fromTime = req.query.fromTime ? new Date(req.query.fromTime as string) : undefined;
+    const toTime = req.query.toTime ? new Date(req.query.toTime as string) : undefined;
+
     let room: TriageRoom | 'all' | undefined;
     if (user.role === 'doctor') {
       room = queryRoom === 'all' ? 'all' : (user.assignedRoom as TriageRoom);
     } else {
       room = queryRoom as TriageRoom | 'all' | undefined;
     }
-    res.json(await svc.listPatients(room, status, triageColor));
+    res.json(await svc.listPatients(room, status, triageColor, wristband, today, fromTime, toTime));
   } catch (err) { next(err); }
 }
 
