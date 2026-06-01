@@ -8,6 +8,7 @@ import { logger } from './core/utils/logger';
 import usersRoutes from './modules/users/users.routes';
 import patientsRoutes from './modules/patients/patients.routes';
 import medicationsRoutes from './modules/medications/medications.routes';
+import roomsRoutes from './modules/rooms/rooms.routes';
 
 export function createApp(): Express {
   const app = express();
@@ -56,6 +57,7 @@ export function createApp(): Express {
   app.use('/api/users', usersRoutes);
   app.use('/api/patients', patientsRoutes);
   app.use('/api/medications', medicationsRoutes);
+  app.use('/api/rooms', roomsRoutes);
   // app.use('/api/vital-signs', vitalSignsRoutes);
   // app.use('/api/treatments', treatmentRoutes);
   // app.use('/api/notifications', notificationRoutes);
