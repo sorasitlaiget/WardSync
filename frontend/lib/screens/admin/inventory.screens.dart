@@ -67,14 +67,7 @@ class _InventoryScreenState extends State<InventoryScreen>
   static const Color _textMid = Color(0xFF8A9B93);
   static const Color _fieldBg = Color(0xFF1C2120);
 
-  final List<Medication> _medications = const [
-    Medication(name: 'Normal Saline',  detail: '500ml IV bolus',   quantity: 142, status: StockStatus.inStock),
-    Medication(name: 'Ceftriaxone',    detail: '2g IV stat',       quantity: 8,   status: StockStatus.lowStock),
-    Medication(name: 'Adrenaline',     detail: '1mg/ml ampoule',   quantity: 2,   status: StockStatus.critical),
-    Medication(name: 'Morphine',       detail: '10mg/ml ampoule',  quantity: 6,   status: StockStatus.lowStock),
-    Medication(name: 'Paracetamol',    detail: '500mg tablet',     quantity: 54,  status: StockStatus.inStock),
-    Medication(name: 'Amoxicillin',    detail: '500mg capsule',    quantity: 30,  status: StockStatus.inStock),
-  ];
+  final List<Medication> _medications = [];
 
   @override
   void initState() {
@@ -120,6 +113,12 @@ class _InventoryScreenState extends State<InventoryScreen>
     }
   }
 
+  StockStatus _statusForQuantity(int quantity) {
+    if (quantity <= 0) return StockStatus.critical;
+    if (quantity <= 10) return StockStatus.lowStock;
+    return StockStatus.inStock;
+  }
+
   Color _cardBorderColor(StockStatus s) {
     switch (s) {
       case StockStatus.inStock:  return _border;
@@ -155,7 +154,29 @@ class _InventoryScreenState extends State<InventoryScreen>
                         ],
                         _buildSearchBar(),
                         const SizedBox(height: 14),
-                        ..._filtered.map(_buildMedCard),
+                        if (_filtered.isEmpty)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 30),
+                            decoration: BoxDecoration(
+                              color: _card,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: _border, width: 1),
+                            ),
+                            child: Column(
+                              children: [
+                                Icon(Icons.inventory_2_outlined, color: _textDim, size: 40),
+                                const SizedBox(height: 12),
+                                Text('No medication yet',
+                                    style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700)),
+                                const SizedBox(height: 6),
+                                Text('Tap ADD MEDICATION to create inventory items.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(color: _textDim, fontSize: 12)),
+                              ],
+                            ),
+                          )
+                        else ..._filtered.map(_buildMedCard),
                         const SizedBox(height: 8),
                         _buildAddButton(),
                       ],
@@ -462,15 +483,25 @@ class _InventoryScreenState extends State<InventoryScreen>
           ),
           ElevatedButton(
             onPressed: () {
-              if (nameController.text.isNotEmpty &&
-                  detailController.text.isNotEmpty &&
-                  quantityController.text.isNotEmpty) {
+              final name = nameController.text.trim();
+              final detail = detailController.text.trim();
+              final quantity = int.tryParse(quantityController.text.trim()) ?? 0;
+
+              if (name.isNotEmpty && detail.isNotEmpty && quantityController.text.isNotEmpty) {
+                setState(() {
+                  _medications.add(Medication(
+                    name: name,
+                    detail: detail,
+                    quantity: quantity,
+                    status: _statusForQuantity(quantity),
+                  ));
+                });
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     backgroundColor: _green,
                     content: Text(
-                      'Added: ${nameController.text}',
+                      'Added: $name',
                       style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
                     ),
                     behavior: SnackBarBehavior.floating,

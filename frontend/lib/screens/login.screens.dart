@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'forgot_password.screens.dart';
 import 'register.screens.dart';
 import 'nurse/homenurse.screens.dart';
 import 'doctor/homedoctor.screens.dart' as doctor;
@@ -262,7 +263,10 @@ class _LoginScreenState extends State<LoginScreen>
 
                             // Forgot passcode link
                             TextButton(
-                              onPressed: () {},
+                              onPressed: () => Navigator.pushNamed(
+                                context,
+                                ForgotPasswordScreen.routeName,
+                              ),
                               child: Text(
                                 'Forgot passcode?',
                                 style: TextStyle(

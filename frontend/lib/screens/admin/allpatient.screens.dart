@@ -75,16 +75,7 @@ class _AllPatientsScreenState extends State<AllPatientsScreen>
   static const Color _textMid = Color(0xFF8A9B93);
   static const Color _fieldBg = Color(0xFF1C2120);
 
-  final List<Patient> _allPatients = const [
-    Patient(id: '#048', triage: TriageColor.red,    age: PatientAge.adult,  gender: PatientGender.male,   room: 'RED ROOM',    status: PatientStatus.inTreatment),
-    Patient(id: '#047', triage: TriageColor.yellow, age: PatientAge.child,  gender: PatientGender.male,   room: 'YELLOW ROOM', status: PatientStatus.waiting),
-    Patient(id: '#046', triage: TriageColor.green,  age: PatientAge.senior, gender: PatientGender.female, room: 'GREEN',       status: PatientStatus.discharged),
-    Patient(id: '#045', triage: TriageColor.red,    age: PatientAge.child,  gender: PatientGender.male,   room: 'RED ROOM',    status: PatientStatus.inTreatment),
-    Patient(id: '#044', triage: TriageColor.yellow, age: PatientAge.child,  gender: PatientGender.male,   room: 'YELLOW ROOM', status: PatientStatus.inTreatment),
-    Patient(id: '#043', triage: TriageColor.green,  age: PatientAge.adult,  gender: PatientGender.female, room: 'GREEN',       status: PatientStatus.discharged),
-    Patient(id: '#042', triage: TriageColor.red,    age: PatientAge.adult,  gender: PatientGender.male,   room: 'RED ROOM',    status: PatientStatus.waiting),
-    Patient(id: '#041', triage: TriageColor.green,  age: PatientAge.child,  gender: PatientGender.female, room: 'GREEN',       status: PatientStatus.inTreatment),
-  ];
+  final List<Patient> _allPatients = [];
 
   @override
   void initState() {
@@ -119,6 +110,15 @@ class _AllPatientsScreenState extends State<AllPatientsScreen>
       case TriageColor.yellow: return _yellow;
       case TriageColor.green:  return _grn;
       case TriageColor.black:  return const Color(0xFF6B7280);
+    }
+  }
+
+  String _triageLabel(TriageColor t) {
+    switch (t) {
+      case TriageColor.red:    return 'Red';
+      case TriageColor.yellow: return 'Yellow';
+      case TriageColor.green:  return 'Green';
+      case TriageColor.black:  return 'Black';
     }
   }
 
@@ -162,16 +162,31 @@ class _AllPatientsScreenState extends State<AllPatientsScreen>
                     _buildSearchBar(),
                     const SizedBox(height: 12),
                     _buildFilterChips(),
+                    const SizedBox(height: 12),
+                    _buildAddButton(),
                   ],
                 ),
               ),
               const SizedBox(height: 12),
               Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  itemCount: _filtered.length,
-                  itemBuilder: (_, i) => _buildPatientCard(_filtered[i]),
-                ),
+                child: _filtered.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Center(
+                          child: Text(
+                            _searchQuery.isEmpty
+                                ? 'No patients yet. Tap ADD PATIENT to add one.'
+                                : 'No patients match your search.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: _textDim, fontSize: 13),
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                        itemCount: _filtered.length,
+                        itemBuilder: (_, i) => _buildPatientCard(_filtered[i]),
+                      ),
               ),
               _buildBottomNav(),
             ],
@@ -363,7 +378,174 @@ class _AllPatientsScreenState extends State<AllPatientsScreen>
       ),
     );
   }
+  Widget _buildAddButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: ElevatedButton.icon(
+        onPressed: _showAddPatientDialog,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _green,
+          foregroundColor: Colors.black,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        icon: const Icon(Icons.add, size: 20),
+        label: const Text('ADD PATIENT',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 2.2)),
+      ),
+    );
+  }
 
+  void _showAddPatientDialog() {
+    final idCtrl = TextEditingController();
+    final roomCtrl = TextEditingController();
+    TriageColor selectedTriage = TriageColor.red;
+    PatientAge selectedAge = PatientAge.adult;
+    PatientGender selectedGender = PatientGender.male;
+    PatientStatus selectedStatus = PatientStatus.waiting;
+
+    showDialog(
+      context: context,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: _card,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+              side: BorderSide(color: _border)),
+          title: Text('ADD PATIENT',
+              style: TextStyle(color: Colors.white, fontSize: 14,
+                  fontWeight: FontWeight.w800, letterSpacing: 1.5)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _dialogField(idCtrl, 'Wristband # (e.g. #001)'),
+                const SizedBox(height: 12),
+                _dialogField(roomCtrl, 'Room name (e.g. RED ROOM)'),
+                const SizedBox(height: 14),
+                _dialogDropdown<TriageColor>(
+                  label: 'Triage',
+                  value: selectedTriage,
+                  items: TriageColor.values,
+                  itemLabel: _triageLabel,
+                  onChanged: (v) => setDialogState(() => selectedTriage = v!),
+                ),
+                const SizedBox(height: 12),
+                _dialogDropdown<PatientAge>(
+                  label: 'Age',
+                  value: selectedAge,
+                  items: PatientAge.values,
+                  itemLabel: _ageLabel,
+                  onChanged: (v) => setDialogState(() => selectedAge = v!),
+                ),
+                const SizedBox(height: 12),
+                _dialogDropdown<PatientGender>(
+                  label: 'Gender',
+                  value: selectedGender,
+                  items: PatientGender.values,
+                  itemLabel: (g) => g == PatientGender.male ? 'Male' : 'Female',
+                  onChanged: (v) => setDialogState(() => selectedGender = v!),
+                ),
+                const SizedBox(height: 12),
+                _dialogDropdown<PatientStatus>(
+                  label: 'Status',
+                  value: selectedStatus,
+                  items: PatientStatus.values,
+                  itemLabel: _statusLabel,
+                  onChanged: (v) => setDialogState(() => selectedStatus = v!),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('CANCEL', style: TextStyle(color: _textDim, fontSize: 12)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: _green, foregroundColor: Colors.black),
+              onPressed: () {
+                final id = idCtrl.text.trim().toUpperCase();
+                final room = roomCtrl.text.trim().toUpperCase();
+                if (id.isNotEmpty && room.isNotEmpty) {
+                  setState(() {
+                    _allPatients.add(Patient(
+                      id: id,
+                      triage: selectedTriage,
+                      age: selectedAge,
+                      gender: selectedGender,
+                      room: room,
+                      status: selectedStatus,
+                    ));
+                  });
+                  Navigator.pop(ctx);
+                }
+              },
+              child: const Text('ADD', style: TextStyle(fontWeight: FontWeight.w800)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _dialogField(TextEditingController ctrl, String hint, {bool isNumber = false}) {
+    return TextField(
+      controller: ctrl,
+      keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+      style: const TextStyle(color: Colors.white, fontSize: 13),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(color: _textDim, fontSize: 12),
+        filled: true,
+        fillColor: _fieldBg,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(6),
+            borderSide: BorderSide(color: _border)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6),
+            borderSide: BorderSide(color: _border)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6),
+            borderSide: BorderSide(color: _green.withOpacity(0.6), width: 1.5)),
+      ),
+    );
+  }
+
+  Widget _dialogDropdown<T>({
+    required String label,
+    required T value,
+    required List<T> items,
+    required String Function(T) itemLabel,
+    required ValueChanged<T?> onChanged,
+  }) {
+    return DropdownButtonFormField<T>(
+      value: value,
+      items: items
+          .map((item) => DropdownMenuItem<T>(
+                value: item,
+                child: Text(itemLabel(item),
+                    style: const TextStyle(color: Colors.white, fontSize: 13)),
+              ))
+          .toList(),
+      onChanged: onChanged,
+      dropdownColor: _card,
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(color: _textDim, fontSize: 12),
+        filled: true,
+        fillColor: _fieldBg,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(6),
+            borderSide: BorderSide(color: _border)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6),
+            borderSide: BorderSide(color: _border)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6),
+            borderSide: BorderSide(color: _green.withOpacity(0.6), width: 1.5)),
+      ),
+      style: const TextStyle(color: Colors.white, fontSize: 13),
+    );
+  }
   // ── Bottom nav ────────────────────────────────────────────────────────────
 
   Widget _buildBottomNav() {

@@ -64,11 +64,7 @@ class _RoomConfigScreenState extends State<RoomConfigScreen>
   static const Color _textMid = Color(0xFF8A9B93);
   static const Color _fieldBg = Color(0xFF1C2120);
 
-  final List<RoomConfig> _rooms = [
-    RoomConfig(name: 'RED ROOM',    color: Color(0xFFD94040), capacity: 10, occupied: 8),
-    RoomConfig(name: 'YELLOW ROOM', color: Color(0xFFE8B840), capacity: 20, occupied: 12),
-    RoomConfig(name: 'GREEN ROOM',  color: Color(0xFF4CAF50), capacity: 50, occupied: 23),
-  ];
+  final List<RoomConfig> _rooms = [];
 
   // Controllers per room
   late final List<TextEditingController> _controllers;
@@ -218,6 +214,17 @@ class _RoomConfigScreenState extends State<RoomConfigScreen>
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
                     child: Column(
                       children: [
+                        if (_rooms.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 32),
+                            child: Center(
+                              child: Text(
+                                'No rooms yet. Tap ADD ROOM to add one.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: _textDim, fontSize: 13),
+                              ),
+                            ),
+                          ),
                         ..._rooms.asMap().entries.map((e) => _buildRoomCard(e.key, e.value)),
                         const SizedBox(height: 8),
                         _buildAddButton(),
