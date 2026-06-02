@@ -1,47 +1,6 @@
 import 'package:flutter/material.dart';
-
-void main() {
-  runApp(const WardSyncApp());
-}
-
-class WardSyncApp extends StatelessWidget {
-  const WardSyncApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'WardSync',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark(),
-      home: const AllPatientsScreen(),
-    );
-  }
-}
-
-// ── Models ────────────────────────────────────────────────────────────────────
-
-enum TriageColor { red, yellow, green, black }
-enum PatientAge { adult, child, senior, infant }
-enum PatientGender { male, female }
-enum PatientStatus { inTreatment, waiting, discharged }
-
-class Patient {
-  final String id;
-  final TriageColor triage;
-  final PatientAge age;
-  final PatientGender gender;
-  final String room;
-  final PatientStatus status;
-
-  const Patient({
-    required this.id,
-    required this.triage,
-    required this.age,
-    required this.gender,
-    required this.room,
-    required this.status,
-  });
-}
+import '../../../../features/patients/repositories/patient_repository.dart';
+import '../../../../shared/models/patient.dart';
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
@@ -75,7 +34,9 @@ class _AllPatientsScreenState extends State<AllPatientsScreen>
   static const Color _textMid = Color(0xFF8A9B93);
   static const Color _fieldBg = Color(0xFF1C2120);
 
-  final List<Patient> _allPatients = [];
+  List<Patient> _allPatients = [];
+  bool _isLoading = true;
+  final _repo = PatientRepository();
 
   @override
   void initState() {
@@ -84,6 +45,17 @@ class _AllPatientsScreenState extends State<AllPatientsScreen>
     _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
     _animController.forward();
     _searchController.addListener(() => setState(() => _searchQuery = _searchController.text));
+    _loadPatients();
+  }
+
+  Future<void> _loadPatients() async {
+    try {
+      final patients = await _repo.getPatients();
+      if (!mounted) return;
+      setState(() { _allPatients = patients; _isLoading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -95,14 +67,14 @@ class _AllPatientsScreenState extends State<AllPatientsScreen>
 
   List<Patient> get _filtered {
     return _allPatients.where((p) {
-      final matchColor = _filterColor == null || p.triage == _filterColor;
+      final matchColor = _filterColor == null || p.triageColor == _filterColor;
       final matchSearch = _searchQuery.isEmpty ||
-          p.id.toLowerCase().contains(_searchQuery.toLowerCase());
+          p.wristbandNumber.toLowerCase().contains(_searchQuery.toLowerCase());
       return matchColor && matchSearch;
     }).toList();
   }
 
-  int _countByColor(TriageColor c) => _allPatients.where((p) => p.triage == c).length;
+  int _countByColor(TriageColor c) => _allPatients.where((p) => p.triageColor == c).length;
 
   Color _triageColor(TriageColor c) {
     switch (c) {
@@ -122,12 +94,12 @@ class _AllPatientsScreenState extends State<AllPatientsScreen>
     }
   }
 
-  String _ageLabel(PatientAge a) {
+  String _ageLabel(AgeRange a) {
     switch (a) {
-      case PatientAge.adult:  return 'ADULT';
-      case PatientAge.child:  return 'CHILD';
-      case PatientAge.senior: return 'SENIOR';
-      case PatientAge.infant: return 'INFANT';
+      case AgeRange.adult:  return 'ADULT';
+      case AgeRange.child:  return 'CHILD';
+      case AgeRange.elder: return 'SENIOR';
+      case AgeRange.infant: return 'INFANT';
     }
   }
 
@@ -136,11 +108,12 @@ class _AllPatientsScreenState extends State<AllPatientsScreen>
       case PatientStatus.inTreatment: return 'In treatment';
       case PatientStatus.waiting:     return 'Waiting';
       case PatientStatus.discharged:  return 'Discharged';
+      case PatientStatus.deceased:    return 'Deceased';
     }
   }
 
-  IconData _genderIcon(PatientGender g) =>
-      g == PatientGender.male ? Icons.male : Icons.female;
+  IconData _genderIcon(Sex g) =>
+      g == Sex.male ? Icons.male : Icons.female;
 
   @override
   Widget build(BuildContext context) {
@@ -169,13 +142,15 @@ class _AllPatientsScreenState extends State<AllPatientsScreen>
               ),
               const SizedBox(height: 12),
               Expanded(
-                child: _filtered.isEmpty
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                    : _filtered.isEmpty
                     ? Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Center(
                           child: Text(
                             _searchQuery.isEmpty
-                                ? 'No patients yet. Tap ADD PATIENT to add one.'
+                                ? 'No patients found.'
                                 : 'No patients match your search.',
                             textAlign: TextAlign.center,
                             style: TextStyle(color: _textDim, fontSize: 13),
@@ -312,7 +287,7 @@ class _AllPatientsScreenState extends State<AllPatientsScreen>
   // ── Patient card ──────────────────────────────────────────────────────────
 
   Widget _buildPatientCard(Patient p) {
-    final color = _triageColor(p.triage);
+    final color = _triageColor(p.triageColor);
     return Container(
       margin: const EdgeInsets.only(bottom: 9),
       decoration: BoxDecoration(
@@ -353,19 +328,19 @@ class _AllPatientsScreenState extends State<AllPatientsScreen>
               children: [
                 Row(
                   children: [
-                    Text(p.id,
+                    Text(p.wristbandNumber,
                         style: const TextStyle(color: Colors.white, fontSize: 14,
                             fontWeight: FontWeight.w700, letterSpacing: 0.5)),
                     const SizedBox(width: 6),
-                    Icon(_genderIcon(p.gender), color: _textMid, size: 14),
+                    Icon(_genderIcon(p.sex), color: _textMid, size: 14),
                     const SizedBox(width: 4),
-                    Text(_ageLabel(p.age),
+                    Text(_ageLabel(p.ageRange),
                         style: TextStyle(color: _textMid, fontSize: 12,
                             fontWeight: FontWeight.w600, letterSpacing: 0.8)),
                   ],
                 ),
                 const SizedBox(height: 3),
-                Text('${p.room} : ${_statusLabel(p.status)}',
+                Text('${p.room.name.toUpperCase()} ROOM : ${_statusLabel(p.status)}',
                     style: TextStyle(color: _textDim, fontSize: 11)),
               ],
             ),
@@ -401,8 +376,8 @@ class _AllPatientsScreenState extends State<AllPatientsScreen>
     final idCtrl = TextEditingController();
     final roomCtrl = TextEditingController();
     TriageColor selectedTriage = TriageColor.red;
-    PatientAge selectedAge = PatientAge.adult;
-    PatientGender selectedGender = PatientGender.male;
+    AgeRange selectedAge = AgeRange.adult;
+    Sex selectedGender = Sex.male;
     PatientStatus selectedStatus = PatientStatus.waiting;
 
     showDialog(
@@ -432,19 +407,19 @@ class _AllPatientsScreenState extends State<AllPatientsScreen>
                   onChanged: (v) => setDialogState(() => selectedTriage = v!),
                 ),
                 const SizedBox(height: 12),
-                _dialogDropdown<PatientAge>(
+                _dialogDropdown<AgeRange>(
                   label: 'Age',
                   value: selectedAge,
-                  items: PatientAge.values,
+                  items: AgeRange.values,
                   itemLabel: _ageLabel,
                   onChanged: (v) => setDialogState(() => selectedAge = v!),
                 ),
                 const SizedBox(height: 12),
-                _dialogDropdown<PatientGender>(
+                _dialogDropdown<Sex>(
                   label: 'Gender',
                   value: selectedGender,
-                  items: PatientGender.values,
-                  itemLabel: (g) => g == PatientGender.male ? 'Male' : 'Female',
+                  items: Sex.values,
+                  itemLabel: (g) => g == Sex.male ? 'Male' : 'Female',
                   onChanged: (v) => setDialogState(() => selectedGender = v!),
                 ),
                 const SizedBox(height: 12),
@@ -466,21 +441,26 @@ class _AllPatientsScreenState extends State<AllPatientsScreen>
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                   backgroundColor: _green, foregroundColor: Colors.black),
-              onPressed: () {
-                final id = idCtrl.text.trim().toUpperCase();
-                final room = roomCtrl.text.trim().toUpperCase();
-                if (id.isNotEmpty && room.isNotEmpty) {
-                  setState(() {
-                    _allPatients.add(Patient(
-                      id: id,
-                      triage: selectedTriage,
-                      age: selectedAge,
-                      gender: selectedGender,
-                      room: room,
-                      status: selectedStatus,
-                    ));
-                  });
+              onPressed: () async {
+                final id = idCtrl.text.trim();
+                if (id.isNotEmpty) {
                   Navigator.pop(ctx);
+                  try {
+                    await _repo.createPatient({
+                      'wristbandNumber': id,
+                      'sex': selectedGender.name,
+                      'ageRange': selectedAge == AgeRange.elder ? 'elder' : selectedAge.name,
+                      'triageColor': selectedTriage.name,
+                    });
+                    await _loadPatients();
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text(e.toString().replaceFirst('Exception: ', '')),
+                        backgroundColor: Colors.redAccent,
+                      ));
+                    }
+                  }
                 }
               },
               child: const Text('ADD', style: TextStyle(fontWeight: FontWeight.w800)),

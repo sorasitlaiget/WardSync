@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../features/auth/repositories/auth_repository.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -20,6 +21,7 @@ class _RegisterScreenState extends State<RegisterScreen>
   bool _isLoading = false;
   bool _obscurePasscode = true;
   bool _obscureConfirm = true;
+  final _authRepo = AuthRepository();
 
   late AnimationController _animController;
   late Animation<double> _fadeAnim;
@@ -68,22 +70,37 @@ class _RegisterScreenState extends State<RegisterScreen>
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 2));
-    setState(() => _isLoading = false);
-    if (mounted) {
+    try {
+      await _authRepo.register(
+        _emailController.text.trim(),
+        _passcodeController.text,
+        _nameController.text.trim(),
+        (_selectedRole ?? 'Nurse').toLowerCase(),
+      );
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           backgroundColor: _green,
           content: const Text(
             'Operator Registered',
-            style: TextStyle(
-                color: Colors.black, fontWeight: FontWeight.bold, fontSize: 14),
+            style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 14),
           ),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       );
-      Navigator.pop(context, _selectedRole);
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.redAccent,
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 

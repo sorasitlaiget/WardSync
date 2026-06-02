@@ -1,27 +1,11 @@
 import 'package:flutter/material.dart';
+import '../../../features/auth/repositories/auth_repository.dart';
+import '../../../shared/models/enums.dart';
 import 'forgot_password.screens.dart';
 import 'register.screens.dart';
 import 'nurse/homenurse.screens.dart';
 import 'doctor/homedoctor.screens.dart' as doctor;
 import 'admin/adminhomepage.screens.dart' as admin;
-
-void main() {
-  runApp(const WardSyncApp());
-}
-
-class WardSyncApp extends StatelessWidget {
-  const WardSyncApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'WardSync',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark(),
-      home: const LoginScreen(),
-    );
-  }
-}
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -39,14 +23,13 @@ class _LoginScreenState extends State<LoginScreen>
   final _passcodeController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePasscode = true;
-  String _selectedRole = 'Nurse';
+  final _authRepo = AuthRepository();
 
   late AnimationController _animController;
   late Animation<double> _fadeAnim;
   late Animation<Offset> _slideAnim;
 
   static const Color _bg = Color(0xFF0D0F0E);
-  static const Color _card = Color(0xFF161A19);
   static const Color _green = Color(0xFF8CBF3F);
   static const Color _fieldBg = Color(0xFF1C2120);
   static const Color _border = Color(0xFF2A3230);
@@ -79,28 +62,33 @@ class _LoginScreenState extends State<LoginScreen>
   Future<void> _authenticate() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 2));
-    setState(() => _isLoading = false);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: _green,
-          content: const Text(
-            'Access Granted',
-            style: TextStyle(
-                color: Colors.black, fontWeight: FontWeight.bold, fontSize: 14),
-          ),
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
+    try {
+      final profile = await _authRepo.signIn(
+        _emailController.text.trim(),
+        _passcodeController.text,
       );
-      final nextRoute = _selectedRole == 'Doctor'
+      if (!mounted) return;
+      final nextRoute = profile.role == UserRole.doctor
           ? doctor.DoctorHomeScreen.routeName
-          : _selectedRole == 'Admin'
+          : profile.role == UserRole.admin
               ? admin.AdminOverviewScreen.routeName
               : NurseHomeScreen.routeName;
       Navigator.pushReplacementNamed(context, nextRoute);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.redAccent,
+          content: Text(
+            e.toString().replaceFirst('Exception: ', ''),
+            style: const TextStyle(color: Colors.white, fontSize: 13),
+          ),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -287,12 +275,7 @@ class _LoginScreenState extends State<LoginScreen>
                                 ),
                                 GestureDetector(
                                   onTap: () => Navigator.pushNamed(
-                                          context, RegisterScreen.routeName)
-                                      .then((result) {
-                                    if (result is String) {
-                                      setState(() => _selectedRole = result);
-                                    }
-                                  }),
+                                      context, RegisterScreen.routeName),
                                   child: Text(
                                     'Register',
                                     style: TextStyle(

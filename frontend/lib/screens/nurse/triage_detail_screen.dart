@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../features/patients/repositories/patient_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../models/patient_model.dart';
 import '../../widgets/wardsync_app_bar.dart';
@@ -23,10 +24,14 @@ class _TriageDetailScreenState extends State<TriageDetailScreen> {
   AgeRange? _selectedAgeRange;
   TriageColor? _selectedColor;
 
+  bool _isSubmitting = false;
+  final _repo = PatientRepository();
+
   bool get _canSubmit =>
       _selectedSex != null &&
       _selectedAgeRange != null &&
-      _selectedColor != null;
+      _selectedColor != null &&
+      !_isSubmitting;
 
   String get _admitButtonLabel {
     if (_selectedColor == null) return 'SELECT TRIAGE COLOR';
@@ -56,26 +61,38 @@ class _TriageDetailScreenState extends State<TriageDetailScreen> {
     }
   }
 
-  void _onAdmit() {
+  Future<void> _onAdmit() async {
     if (!_canSubmit) return;
-    final patient = PatientModel(
-      wristbandNumber: widget.wristbandNumber,
-      sex: _selectedSex!,
-      ageRange: _selectedAgeRange!,
-      triageColor: _selectedColor!,
-      arrivedAt: DateTime.now(),
-    );
-    // TODO: Save to Firestore
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Patient #${patient.wristbandNumber} admitted to ${patient.roomName}',
+    setState(() => _isSubmitting = true);
+    try {
+      await _repo.createPatient({
+        'wristbandNumber': widget.wristbandNumber,
+        'sex': _selectedSex!.name,
+        'ageRange': _selectedAgeRange == AgeRange.senior ? 'elder' : _selectedAgeRange!.name,
+        'triageColor': _selectedColor!.name,
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Patient #${widget.wristbandNumber} admitted to ${_selectedColor!.name.toUpperCase()} ROOM',
+          ),
+          backgroundColor: AppColors.surface,
+          duration: const Duration(seconds: 2),
         ),
-        backgroundColor: AppColors.surface,
-        duration: const Duration(seconds: 2),
-      ),
-    );
-    Navigator.popUntil(context, (route) => route.isFirst);
+      );
+      Navigator.popUntil(context, (route) => route.isFirst);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   @override

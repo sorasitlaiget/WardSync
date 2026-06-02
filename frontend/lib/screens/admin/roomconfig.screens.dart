@@ -1,41 +1,5 @@
 import 'package:flutter/material.dart';
-
-void main() {
-  runApp(const WardSyncApp());
-}
-
-class WardSyncApp extends StatelessWidget {
-  const WardSyncApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'WardSync',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark(),
-      home: const RoomConfigScreen(),
-    );
-  }
-}
-
-// ── Model ─────────────────────────────────────────────────────────────────────
-
-class RoomConfig {
-  final String name;
-  final Color color;
-  int capacity;
-  final int occupied;
-
-  RoomConfig({
-    required this.name,
-    required this.color,
-    required this.capacity,
-    required this.occupied,
-  });
-
-  double get occupancyRatio => capacity > 0 ? (occupied / capacity).clamp(0.0, 1.0) : 0;
-  int get occupancyPct => (occupancyRatio * 100).round();
-}
+import '../../../../features/rooms/repositories/room_repository.dart';
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
@@ -64,135 +28,61 @@ class _RoomConfigScreenState extends State<RoomConfigScreen>
   static const Color _textMid = Color(0xFF8A9B93);
   static const Color _fieldBg = Color(0xFF1C2120);
 
-  final List<RoomConfig> _rooms = [];
-
-  // Controllers per room
-  late final List<TextEditingController> _controllers;
+  List<RoomCapacity> _rooms = [];
+  bool _isLoading = true;
+  final _repo = RoomRepository();
+  final Map<String, TextEditingController> _controllers = {};
 
   @override
   void initState() {
     super.initState();
-    _controllers = _rooms.map((r) => TextEditingController(text: '${r.capacity}')).toList();
     _animController = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
     _fadeAnim  = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
     _slideAnim = Tween<Offset>(begin: const Offset(0, 0.05), end: Offset.zero)
         .animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
     _animController.forward();
+    _loadRooms();
+  }
+
+  Future<void> _loadRooms() async {
+    try {
+      final rooms = await _repo.getAllRoomCapacity();
+      if (!mounted) return;
+      for (final r in rooms) {
+        _controllers[r.room] = TextEditingController(text: '${r.capacity}');
+      }
+      setState(() { _rooms = rooms; _isLoading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
   void dispose() {
     _animController.dispose();
-    for (final c in _controllers) c.dispose();
+    for (final c in _controllers.values) c.dispose();
     super.dispose();
   }
 
-  void _onCapacityChanged(int index, String value) {
+  Future<void> _onCapacityChanged(String room, String value) async {
     final parsed = int.tryParse(value);
-    if (parsed != null && parsed > 0) {
-      setState(() => _rooms[index].capacity = parsed);
+    if (parsed == null || parsed <= 0) return;
+    try {
+      await _repo.setRoomCapacity(room, parsed);
+      await _loadRooms();
+    } catch (_) {}
+  }
+
+  Color _roomColor(String room) {
+    switch (room) {
+      case 'red':    return const Color(0xFFD94040);
+      case 'yellow': return const Color(0xFFE8B840);
+      case 'green':  return const Color(0xFF4CAF50);
+      case 'black':  return const Color(0xFF6B7280);
+      default:       return const Color(0xFF8CBF3F);
     }
   }
 
-  void _showAddRoomDialog() {
-    final nameCtrl = TextEditingController();
-    final capCtrl  = TextEditingController();
-    Color selectedColor = const Color(0xFF8CBF3F);
-
-    showDialog(
-      context: context,
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: _card,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-              side: BorderSide(color: _border)),
-          title: Text('ADD ROOM',
-              style: TextStyle(color: Colors.white, fontSize: 14,
-                  fontWeight: FontWeight.w800, letterSpacing: 1.5)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _dialogField(nameCtrl, 'Room name (e.g. BLUE ROOM)'),
-              const SizedBox(height: 12),
-              _dialogField(capCtrl, 'Capacity (beds)', isNumber: true),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Text('Color:', style: TextStyle(color: _textDim, fontSize: 11)),
-                  const SizedBox(width: 12),
-                  ...[
-                    const Color(0xFF4CAF50),
-                    const Color(0xFF2196F3),
-                    const Color(0xFF9C27B0),
-                    const Color(0xFFFF9800),
-                  ].map((c) => GestureDetector(
-                    onTap: () => setDialogState(() => selectedColor = c),
-                    child: Container(
-                      width: 24, height: 24,
-                      margin: const EdgeInsets.only(right: 8),
-                      decoration: BoxDecoration(
-                        color: c,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: selectedColor == c ? Colors.white : Colors.transparent,
-                          width: 2,
-                        ),
-                      ),
-                    ),
-                  )),
-                ],
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text('CANCEL', style: TextStyle(color: _textDim, fontSize: 12)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: _green, foregroundColor: Colors.black),
-              onPressed: () {
-                final name = nameCtrl.text.trim().toUpperCase();
-                final cap  = int.tryParse(capCtrl.text) ?? 0;
-                if (name.isNotEmpty && cap > 0) {
-                  setState(() {
-                    _rooms.add(RoomConfig(
-                        name: name, color: selectedColor,
-                        capacity: cap, occupied: 0));
-                    _controllers.add(TextEditingController(text: '$cap'));
-                  });
-                  Navigator.pop(ctx);
-                }
-              },
-              child: const Text('ADD', style: TextStyle(fontWeight: FontWeight.w800)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _dialogField(TextEditingController ctrl, String hint, {bool isNumber = false}) {
-    return TextField(
-      controller: ctrl,
-      keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-      style: const TextStyle(color: Colors.white, fontSize: 13),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(color: _textDim, fontSize: 12),
-        filled: true, fillColor: _fieldBg,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(6),
-            borderSide: BorderSide(color: _border)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6),
-            borderSide: BorderSide(color: _border)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6),
-            borderSide: BorderSide(color: _green.withOpacity(0.6), width: 1.5)),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -225,9 +115,13 @@ class _RoomConfigScreenState extends State<RoomConfigScreen>
                               ),
                             ),
                           ),
-                        ..._rooms.asMap().entries.map((e) => _buildRoomCard(e.key, e.value)),
-                        const SizedBox(height: 8),
-                        _buildAddButton(),
+                        if (_isLoading)
+                          const Center(child: Padding(
+                            padding: EdgeInsets.all(32),
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ))
+                        else
+                          ..._rooms.map(_buildRoomCard),
                       ],
                     ),
                   ),
@@ -296,8 +190,8 @@ class _RoomConfigScreenState extends State<RoomConfigScreen>
 
   // ── Room card ─────────────────────────────────────────────────────────────
 
-  Widget _buildRoomCard(int index, RoomConfig room) {
-    final color = room.color;
+  Widget _buildRoomCard(RoomCapacity room) {
+    final color = _roomColor(room.room);
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -326,11 +220,11 @@ class _RoomConfigScreenState extends State<RoomConfigScreen>
                     ),
                   ),
                 ),
-                Text(room.name,
+                Text(room.room.toUpperCase(),
                     style: TextStyle(color: color, fontSize: 15,
                         fontWeight: FontWeight.w800, letterSpacing: 1.2)),
                 const Spacer(),
-                Text('${room.occupancyPct} % FULL',
+                Text('${(room.occupancyRatio * 100).round()} % FULL',
                     style: TextStyle(color: color, fontSize: 11,
                         fontWeight: FontWeight.w700, letterSpacing: 0.5)),
               ],
@@ -348,11 +242,11 @@ class _RoomConfigScreenState extends State<RoomConfigScreen>
                         letterSpacing: 1.8, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 6),
                 TextField(
-                  controller: _controllers[index],
+                  controller: _controllers[room.room],
                   keyboardType: TextInputType.number,
                   style: const TextStyle(color: Colors.white, fontSize: 16,
                       fontWeight: FontWeight.w700),
-                  onChanged: (v) => _onCapacityChanged(index, v),
+                  onChanged: (v) => _onCapacityChanged(room.room, v),
                   decoration: InputDecoration(
                     filled: true,
                     fillColor: _fieldBg,
@@ -395,26 +289,6 @@ class _RoomConfigScreenState extends State<RoomConfigScreen>
     );
   }
 
-  // ── Add room button ───────────────────────────────────────────────────────
-
-  Widget _buildAddButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: ElevatedButton.icon(
-        onPressed: _showAddRoomDialog,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: _green,
-          foregroundColor: Colors.black,
-          elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-        icon: const Icon(Icons.add, size: 20),
-        label: const Text('ADD ROOM',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 2.2)),
-      ),
-    );
-  }
 
   // ── Bottom nav ────────────────────────────────────────────────────────────
 

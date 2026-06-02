@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../features/auth/repositories/auth_repository.dart';
+import '../../../features/patients/repositories/patient_repository.dart';
+import '../../../shared/models/patient.dart';
 import '../../theme/app_theme.dart';
-import '../../models/patient_model.dart';
 import '../../widgets/wardsync_app_bar.dart';
 import 'patient_detail_screen.dart';
 
@@ -15,38 +17,40 @@ class DoctorHomeScreen extends StatefulWidget {
 class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
   int _selectedNavIndex = 0;
 
-  final String _operatorName = 'Doctor J.';
-  final String _assignedRoom = 'Red Room';
-  final TriageColor _roomColor = TriageColor.red;
-  final int _totalBeds = 10;
-  final int _occupiedBeds = 8;
+  String _operatorName = 'Doctor';
+  String _assignedRoom = 'Red Room';
+  TriageColor _roomColor = TriageColor.red;
+  static const int _totalBeds = 10;
 
-  final List<_PatientCardData> _patients = [
-    _PatientCardData(
-      wristbandNumber: '048',
-      sex: PatientSex.male,
-      ageRange: AgeRange.adult,
-      triageColor: TriageColor.red,
-      arrivedAt: DateTime.now().subtract(const Duration(seconds: 30)),
-      status: PatientStatus.inTreatment,
-    ),
-    _PatientCardData(
-      wristbandNumber: '034',
-      sex: PatientSex.male,
-      ageRange: AgeRange.child,
-      triageColor: TriageColor.red,
-      arrivedAt: DateTime.now().subtract(const Duration(minutes: 7)),
-      status: PatientStatus.waiting,
-    ),
-    _PatientCardData(
-      wristbandNumber: '030',
-      sex: PatientSex.female,
-      ageRange: AgeRange.senior,
-      triageColor: TriageColor.red,
-      arrivedAt: DateTime.now().subtract(const Duration(minutes: 18)),
-      status: PatientStatus.waiting,
-    ),
-  ];
+  List<Patient> _patients = [];
+  bool _isLoading = true;
+
+  final _patientRepo = PatientRepository();
+  final _authRepo = AuthRepository();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      final profile = await _authRepo.getProfile();
+      final room = profile.assignedRoom?.name ?? 'red';
+      final patients = await _patientRepo.getPatients(room: room);
+      if (!mounted) return;
+      setState(() {
+        _operatorName = profile.name;
+        _assignedRoom = '${room[0].toUpperCase()}${room.substring(1)} Room';
+        _roomColor = TriageColor.values.byName(room);
+        _patients = patients;
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   Color get _roomAccentColor {
     switch (_roomColor) {
@@ -61,8 +65,8 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
     }
   }
 
-  double get _occupancyRatio => _occupiedBeds / _totalBeds;
-  int get _freeBeds => _totalBeds - _occupiedBeds;
+  double get _occupancyRatio => _patients.length / _totalBeds;
+  int get _freeBeds => _totalBeds - _patients.length;
 
   @override
   Widget build(BuildContext context) {
@@ -86,7 +90,15 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
                   const SizedBox(height: 20),
                   _buildPatientListHeader(),
                   const SizedBox(height: 10),
-                  ..._patients.map(_buildPatientCard),
+                  if (_isLoading)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  else
+                    ..._patients.map(_buildPatientCard),
                 ],
               ),
             ),
@@ -130,7 +142,7 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
                 ),
               ),
               Text(
-                '$_occupiedBeds/$_totalBeds BEDS',
+                '${_patients.length}/$_totalBeds BEDS',
                 style: GoogleFonts.rajdhani(
                   color: AppColors.textSecondary,
                   fontSize: 13,
@@ -203,7 +215,7 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
     );
   }
 
-  Widget _buildPatientCard(_PatientCardData patient) {
+  Widget _buildPatientCard(Patient patient) {
     final Color borderColor;
     switch (patient.triageColor) {
       case TriageColor.red:
@@ -235,14 +247,7 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => PatientDetailScreen(
-                  wristbandNumber: patient.wristbandNumber,
-                  sex: patient.sex,
-                  ageRange: patient.ageRange,
-                  triageColor: patient.triageColor,
-                  arrivedAt: patient.arrivedAt,
-                  status: patient.status,
-                ),
+                builder: (_) => PatientDetailScreen(patient: patient),
               ),
             );
           },
@@ -281,7 +286,7 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
                           ),
                           const SizedBox(width: 6),
                           Icon(
-                            patient.sex == PatientSex.male
+                            patient.sex == Sex.male
                                 ? Icons.male
                                 : Icons.female,
                             color: AppColors.textSecondary,
@@ -289,7 +294,7 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            patient.ageRangeLabel,
+                            patient.ageRange == AgeRange.elder ? 'SENIOR' : patient.ageRange.name.toUpperCase(),
                             style: GoogleFonts.rajdhani(
                               color: AppColors.textSecondary,
                               fontSize: 14,
@@ -397,33 +402,3 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
   }
 }
 
-class _PatientCardData {
-  final String wristbandNumber;
-  final PatientSex sex;
-  final AgeRange ageRange;
-  final TriageColor triageColor;
-  final DateTime arrivedAt;
-  final PatientStatus status;
-
-  _PatientCardData({
-    required this.wristbandNumber,
-    required this.sex,
-    required this.ageRange,
-    required this.triageColor,
-    required this.arrivedAt,
-    required this.status,
-  });
-
-  String get ageRangeLabel {
-    switch (ageRange) {
-      case AgeRange.infant:
-        return 'INFANT';
-      case AgeRange.child:
-        return 'CHILD';
-      case AgeRange.adult:
-        return 'ADULT';
-      case AgeRange.senior:
-        return 'SENIOR';
-    }
-  }
-}

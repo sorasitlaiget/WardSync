@@ -1,28 +1,7 @@
 import 'package:flutter/material.dart';
-
-// ── Data models ───────────────────────────────────────────────────────────────
-
-enum TriageColor { red, yellow, green, black }
-
-enum PatientAge { adult, child, senior, infant }
-
-enum PatientGender { male, female }
-
-class TriagePatient {
-  final String id;
-  final TriageColor color;
-  final PatientAge age;
-  final PatientGender gender;
-  final String timeAgo;
-
-  const TriagePatient({
-    required this.id,
-    required this.color,
-    required this.age,
-    required this.gender,
-    required this.timeAgo,
-  });
-}
+import '../../../features/patients/repositories/patient_repository.dart';
+import '../../../shared/models/patient.dart';
+import 'new_patient_screen.dart';
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 
@@ -54,26 +33,9 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
   static const Color _grn = Color(0xFF4CAF50);
   static const Color _blk = Color(0xFF6B7280);
 
-  final List<TriagePatient> _patients = const [
-    TriagePatient(
-        id: '#048',
-        color: TriageColor.red,
-        age: PatientAge.adult,
-        gender: PatientGender.male,
-        timeAgo: 'Just now'),
-    TriagePatient(
-        id: '#047',
-        color: TriageColor.yellow,
-        age: PatientAge.child,
-        gender: PatientGender.male,
-        timeAgo: '2 min ago'),
-    TriagePatient(
-        id: '#046',
-        color: TriageColor.green,
-        age: PatientAge.senior,
-        gender: PatientGender.female,
-        timeAgo: '5 min ago'),
-  ];
+  List<Patient> _patients = [];
+  bool _isLoading = true;
+  final _repo = PatientRepository();
 
   @override
   void initState() {
@@ -84,6 +46,28 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
     );
     _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
     _animController.forward();
+    _loadPatients();
+  }
+
+  Future<void> _loadPatients() async {
+    try {
+      final patients = await _repo.getPatients();
+      if (!mounted) return;
+      setState(() {
+        _patients = patients;
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  String _timeAgo(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
   }
 
   @override
@@ -118,21 +102,21 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
     }
   }
 
-  String _ageLabel(PatientAge a) {
+  String _ageLabel(AgeRange a) {
     switch (a) {
-      case PatientAge.adult:
+      case AgeRange.adult:
         return 'ADULT';
-      case PatientAge.child:
+      case AgeRange.child:
         return 'CHILD';
-      case PatientAge.senior:
+      case AgeRange.elder:
         return 'SENIOR';
-      case PatientAge.infant:
+      case AgeRange.infant:
         return 'INFANT';
     }
   }
 
-  IconData _genderIcon(PatientGender g) =>
-      g == PatientGender.male ? Icons.male : Icons.female;
+  IconData _genderIcon(Sex g) =>
+      g == Sex.male ? Icons.male : Icons.female;
 
   @override
   Widget build(BuildContext context) {
@@ -155,7 +139,25 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
                       const SizedBox(height: 28),
                       _buildSectionLabel('RECENT TRIAGE'),
                       const SizedBox(height: 12),
-                      ..._patients.map(_buildPatientCard),
+                      if (_isLoading)
+                        const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(24),
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
+                      else if (_patients.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 24),
+                          child: Center(
+                            child: Text(
+                              'No patients yet',
+                              style: TextStyle(color: _textDim, fontSize: 13),
+                            ),
+                          ),
+                        )
+                      else
+                        ..._patients.map(_buildPatientCard),
                       const SizedBox(height: 20),
                       _buildNewPatientButton(),
                     ],
@@ -238,10 +240,10 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
 
   Widget _buildCountCards() {
     final counts = [
-      (8, 'Red', _red),
-      (12, 'YEL', _yellow),
-      (23, 'GRN', _grn),
-      (2, 'BLK', _blk),
+      (_patients.where((p) => p.triageColor == TriageColor.red).length, 'Red', _red),
+      (_patients.where((p) => p.triageColor == TriageColor.yellow).length, 'YEL', _yellow),
+      (_patients.where((p) => p.triageColor == TriageColor.green).length, 'GRN', _grn),
+      (_patients.where((p) => p.triageColor == TriageColor.black).length, 'BLK', _blk),
     ];
     return Row(
       children: counts
@@ -299,8 +301,8 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
 
   // ── Patient card ──────────────────────────────────────────────────────────
 
-  Widget _buildPatientCard(TriagePatient p) {
-    final color = _triageColor(p.color);
+  Widget _buildPatientCard(Patient p) {
+    final color = _triageColor(p.triageColor);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
@@ -342,7 +344,7 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
                 Row(
                   children: [
                     Text(
-                      p.id,
+                      '#${p.wristbandNumber}',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 14,
@@ -351,11 +353,11 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
                       ),
                     ),
                     const SizedBox(width: 6),
-                    Icon(_genderIcon(p.gender),
+                    Icon(_genderIcon(p.sex),
                         color: _textMid, size: 14),
                     const SizedBox(width: 4),
                     Text(
-                      _ageLabel(p.age),
+                      _ageLabel(p.ageRange),
                       style: TextStyle(
                         color: _textMid,
                         fontSize: 12,
@@ -367,7 +369,7 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  p.timeAgo,
+                  _timeAgo(p.arrivedAt),
                   style: TextStyle(
                     color: _textDim,
                     fontSize: 11,
@@ -387,7 +389,7 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
               border: Border.all(color: color.withOpacity(0.4), width: 1),
             ),
             child: Text(
-              _triageLabel(p.color),
+              _triageLabel(p.triageColor),
               style: TextStyle(
                 color: color,
                 fontSize: 9,
@@ -408,7 +410,10 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
       width: double.infinity,
       height: 52,
       child: ElevatedButton.icon(
-        onPressed: () {},
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const NewPatientScreen()),
+        ).then((_) => _loadPatients()),
         style: ElevatedButton.styleFrom(
           backgroundColor: _green,
           foregroundColor: Colors.black,

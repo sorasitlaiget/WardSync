@@ -1,24 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../features/patients/repositories/patient_repository.dart';
+import '../../../shared/models/patient.dart';
+import '../../../shared/models/enums.dart';
 import '../../theme/app_theme.dart';
-import '../../models/patient_model.dart';
 import '../../widgets/wardsync_app_bar.dart';
 
-// ── Vital signs data model ────────────────────────────────────────────────────
-class VitalSigns {
+// ── Local editable vitals form model ─────────────────────────────────────────
+class _FormVitals {
   int systolic;
   int diastolic;
   int pulse;
   double temp;
   int spo2;
 
-  VitalSigns({
-    this.systolic = 80,
-    this.diastolic = 50,
-    this.pulse = 130,
-    this.temp = 38.2,
-    this.spo2 = 94,
-  });
+  _FormVitals()
+      : systolic = 80,
+        diastolic = 50,
+        pulse = 130,
+        temp = 38.2,
+        spo2 = 94;
 
   bool get bpCritical => systolic < 90 || diastolic < 60;
   bool get pulseCritical => pulse > 120 || pulse < 50;
@@ -41,22 +42,9 @@ class MedicationItem {
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 class PatientDetailScreen extends StatefulWidget {
-  final String wristbandNumber;
-  final PatientSex sex;
-  final AgeRange ageRange;
-  final TriageColor triageColor;
-  final DateTime arrivedAt;
-  PatientStatus status;
+  final Patient patient;
 
-  PatientDetailScreen({
-    super.key,
-    required this.wristbandNumber,
-    required this.sex,
-    required this.ageRange,
-    required this.triageColor,
-    required this.arrivedAt,
-    required this.status,
-  });
+  const PatientDetailScreen({super.key, required this.patient});
 
   @override
   State<PatientDetailScreen> createState() => _PatientDetailScreenState();
@@ -65,9 +53,11 @@ class PatientDetailScreen extends StatefulWidget {
 class _PatientDetailScreenState extends State<PatientDetailScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  late PatientStatus _currentStatus;
+  final _repo = PatientRepository();
 
   // Vitals
-  final VitalSigns _vitals = VitalSigns();
+  final _FormVitals _vitals = _FormVitals();
   final _sysCtrl = TextEditingController();
   final _diaCtrl = TextEditingController();
   final _pulseCtrl = TextEditingController();
@@ -87,6 +77,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _currentStatus = widget.patient.status;
     _sysCtrl.text = _vitals.systolic.toString();
     _diaCtrl.text = _vitals.diastolic.toString();
     _pulseCtrl.text = _vitals.pulse.toString();
@@ -110,7 +101,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
   Color get _triageDotColor {
-    switch (widget.triageColor) {
+    switch (widget.patient.triageColor) {
       case TriageColor.red:
         return AppColors.dotRed;
       case TriageColor.yellow:
@@ -123,7 +114,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
   }
 
   String get _triageLabel {
-    switch (widget.triageColor) {
+    switch (widget.patient.triageColor) {
       case TriageColor.red:
         return 'RED';
       case TriageColor.yellow:
@@ -136,22 +127,22 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
   }
 
   String get _ageRangeLabel {
-    switch (widget.ageRange) {
+    switch (widget.patient.ageRange) {
       case AgeRange.infant:
         return 'INFANT';
       case AgeRange.child:
         return 'CHILD';
       case AgeRange.adult:
         return 'ADULT';
-      case AgeRange.senior:
+      case AgeRange.elder:
         return 'SENIOR';
     }
   }
 
   String get _arrivedTimeLabel {
-    final h = widget.arrivedAt.hour.toString().padLeft(2, '0');
-    final m = widget.arrivedAt.minute.toString().padLeft(2, '0');
-    return '${widget.triageColor.name.toUpperCase()} ROOM : ARRIVED $h:$m';
+    final h = widget.patient.arrivedAt.hour.toString().padLeft(2, '0');
+    final m = widget.patient.arrivedAt.minute.toString().padLeft(2, '0');
+    return '${widget.patient.triageColor.name.toUpperCase()} ROOM : ARRIVED $h:$m';
   }
 
   // ── Build ────────────────────────────────────────────────────────────────────
@@ -160,7 +151,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: WardSyncAppBar(
-        title: '#${widget.wristbandNumber} VITALS',
+        title: '#${widget.patient.wristbandNumber} VITALS',
         badge: BadgeVariant.nurse,
         subtitle: _arrivedTimeLabel,
       ),
@@ -174,8 +165,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
               children: [
                 _OverviewTab(
                   vitals: _vitals,
-                  status: widget.status,
-                  onStatusChange: (s) => setState(() => widget.status = s),
+                  status: _currentStatus,
+                  onStatusChange: (s) => setState(() => _currentStatus = s),
                 ),
                 _VitalTab(
                   vitals: _vitals,
@@ -228,7 +219,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '#${widget.wristbandNumber}',
+                '#${widget.patient.wristbandNumber}',
                 style: GoogleFonts.rajdhani(
                   color: AppColors.textPrimary,
                   fontSize: 24,
@@ -271,13 +262,13 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                   ),
                   const SizedBox(width: 8),
                   Icon(
-                    widget.sex == PatientSex.male ? Icons.male : Icons.female,
+                    widget.patient.sex == Sex.male ? Icons.male : Icons.female,
                     color: AppColors.textSecondary,
                     size: 14,
                   ),
                   const SizedBox(width: 2),
                   Text(
-                    widget.sex == PatientSex.male ? 'MALE' : 'FEMALE',
+                    widget.patient.sex == Sex.male ? 'MALE' : 'FEMALE',
                     style: GoogleFonts.rajdhani(
                       color: AppColors.textSecondary,
                       fontSize: 12,
@@ -334,32 +325,56 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
   }
 
   // ── Actions ──────────────────────────────────────────────────────────────────
-  void _saveVitals() {
+  Future<void> _saveVitals() async {
     setState(() {
       _vitals.systolic = int.tryParse(_sysCtrl.text) ?? _vitals.systolic;
       _vitals.diastolic = int.tryParse(_diaCtrl.text) ?? _vitals.diastolic;
       _vitals.pulse = int.tryParse(_pulseCtrl.text) ?? _vitals.pulse;
-      _vitals.temp =
-          double.tryParse(_tempCtrl.text) ?? _vitals.temp;
+      _vitals.temp = double.tryParse(_tempCtrl.text) ?? _vitals.temp;
       _vitals.spo2 = int.tryParse(_spo2Ctrl.text) ?? _vitals.spo2;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
+    try {
+      await _repo.addVitalSigns(widget.patient.id, {
+        'systolic': _vitals.systolic,
+        'diastolic': _vitals.diastolic,
+        'pulse': _vitals.pulse,
+        'temperature': _vitals.temp,
+        'spo2': _vitals.spo2,
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Vitals saved'),
         backgroundColor: AppColors.surface,
         duration: Duration(seconds: 1),
-      ),
-    );
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(e.toString().replaceFirst('Exception: ', '')),
+        backgroundColor: Colors.redAccent,
+      ));
+    }
   }
 
-  void _saveTreatment() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
+  Future<void> _saveTreatment() async {
+    try {
+      await _repo.addTreatment(widget.patient.id, {
+        'diagnosis': _diagnosisCtrl.text,
+        'medication': _medications.map((m) => '${m.name} ${m.dosage}').join(', '),
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Treatment saved'),
         backgroundColor: AppColors.surface,
         duration: Duration(seconds: 1),
-      ),
-    );
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(e.toString().replaceFirst('Exception: ', '')),
+        backgroundColor: Colors.redAccent,
+      ));
+    }
   }
 
   void _showAddMedicationDialog() {
@@ -446,7 +461,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
 // OVERVIEW TAB
 // ═══════════════════════════════════════════════════════════════════════════════
 class _OverviewTab extends StatelessWidget {
-  final VitalSigns vitals;
+  final _FormVitals vitals;
   final PatientStatus status;
   final ValueChanged<PatientStatus> onStatusChange;
 
@@ -669,7 +684,7 @@ class _OverviewTab extends StatelessWidget {
 // VITAL TAB
 // ═══════════════════════════════════════════════════════════════════════════════
 class _VitalTab extends StatelessWidget {
-  final VitalSigns vitals;
+  final _FormVitals vitals;
   final TextEditingController sysCtrl;
   final TextEditingController diaCtrl;
   final TextEditingController pulseCtrl;

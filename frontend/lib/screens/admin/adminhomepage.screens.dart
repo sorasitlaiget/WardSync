@@ -1,34 +1,6 @@
 import 'package:flutter/material.dart';
-
-void main() {
-  runApp(const WardSyncApp());
-}
-
-class WardSyncApp extends StatelessWidget {
-  const WardSyncApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'WardSync',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark(),
-      home: const AdminOverviewScreen(),
-    );
-  }
-}
-
-// ── Models ────────────────────────────────────────────────────────────────────
-
-class RoomCapacity {
-  final String label;
-  final Color color;
-  final int current;
-  final int? total; // null = unknown (?)
-  RoomCapacity({required this.label, required this.color, required this.current, this.total});
-  double get ratio => total != null ? (current / total!).clamp(0.0, 1.0) : 0.1;
-  String get capacityText => total != null ? '$current/$total' : '$current/?';
-}
+import '../../../../features/rooms/repositories/room_repository.dart';
+import '../../../../features/stats/repositories/stats_repository.dart';
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
@@ -60,12 +32,10 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen>
   static const Color _textDim  = Color(0xFF5A6B65);
   static const Color _textMid  = Color(0xFF8A9B93);
 
-  final List<RoomCapacity> _rooms = [
-    RoomCapacity(label: 'RED',    color: Color(0xFFD94040), current: 3,  total: 10),
-    RoomCapacity(label: 'YELLOW', color: Color(0xFFE8B840), current: 12, total: 20),
-    RoomCapacity(label: 'GREEN',  color: Color(0xFF4CAF50), current: 23, total: 50),
-    RoomCapacity(label: 'BLACK',  color: Color(0xFF6B7280), current: 2,  total: null),
-  ];
+  List<RoomCapacity> _rooms = [];
+  ChartStats? _stats;
+  final _roomRepo  = RoomRepository();
+  final _statsRepo = StatsRepository();
 
   @override
   void initState() {
@@ -75,6 +45,31 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen>
     _slideAnim = Tween<Offset>(begin: const Offset(0, 0.05), end: Offset.zero)
         .animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
     _animController.forward();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      final results = await Future.wait([
+        _roomRepo.getAllRoomCapacity(),
+        _statsRepo.getChartStats(),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _rooms = results[0] as List<RoomCapacity>;
+        _stats = results[1] as ChartStats;
+      });
+    } catch (_) {}
+  }
+
+  Color _roomColor(String room) {
+    switch (room) {
+      case 'red':    return _red;
+      case 'yellow': return _yellow;
+      case 'green':  return _grn;
+      case 'black':  return _blk;
+      default:       return _green;
+    }
   }
 
   @override
@@ -187,9 +182,9 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen>
   Widget _buildStatCards() {
     return Row(
       children: [
-        Expanded(child: _statCard('45', 'TOTAL  TODAY')),
+        Expanded(child: _statCard('${_stats?.totalToday ?? '--'}', 'TOTAL  TODAY')),
         const SizedBox(width: 12),
-        Expanded(child: _statCard('12', 'ACTIVE  NOW')),
+        Expanded(child: _statCard('${_stats?.activePatients ?? '--'}', 'ACTIVE  NOW')),
       ],
     );
   }
@@ -228,10 +223,10 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen>
 
   Widget _buildTriageColorCards() {
     final data = [
-      (3, 'Red', _red),
-      (12, 'YEL', _yellow),
-      (23, 'GRN', _grn),
-      (2, 'BLK', _blk),
+      (_stats?.byTriageColor['red'] ?? 0,    'Red', _red),
+      (_stats?.byTriageColor['yellow'] ?? 0, 'YEL', _yellow),
+      (_stats?.byTriageColor['green'] ?? 0,  'GRN', _grn),
+      (_stats?.byTriageColor['black'] ?? 0,  'BLK', _blk),
     ];
     return Row(
       children: data.asMap().entries.map((e) {
@@ -280,34 +275,32 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen>
   }
 
   Widget _roomRow(RoomCapacity r) {
+    final color = _roomColor(r.room);
     return Padding(
       padding: const EdgeInsets.only(top: 14),
       child: Row(
         children: [
-          // Label
           SizedBox(
             width: 52,
-            child: Text(r.label,
+            child: Text(r.room.toUpperCase(),
                 style: TextStyle(color: _textDim, fontSize: 10,
                     letterSpacing: 1.2, fontWeight: FontWeight.w600)),
           ),
-          // Progress bar
           Expanded(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(3),
               child: LinearProgressIndicator(
-                value: r.ratio,
+                value: r.occupancyRatio,
                 minHeight: 7,
                 backgroundColor: _border,
-                valueColor: AlwaysStoppedAnimation<Color>(r.color),
+                valueColor: AlwaysStoppedAnimation<Color>(color),
               ),
             ),
           ),
-          // Capacity text
           SizedBox(
             width: 44,
             child: Text(
-              r.capacityText,
+              '${r.occupied}/${r.capacity}',
               textAlign: TextAlign.right,
               style: TextStyle(color: _textMid, fontSize: 11,
                   fontWeight: FontWeight.w600),

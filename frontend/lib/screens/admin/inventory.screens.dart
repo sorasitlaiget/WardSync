@@ -1,40 +1,7 @@
 import 'package:flutter/material.dart';
-
-void main() {
-  runApp(const WardSyncApp());
-}
-
-class WardSyncApp extends StatelessWidget {
-  const WardSyncApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'WardSync',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark(),
-      home: const InventoryScreen(),
-    );
-  }
-}
-
-// ── Models ────────────────────────────────────────────────────────────────────
+import '../../../../features/medications/repositories/medication_repository.dart';
 
 enum StockStatus { inStock, lowStock, critical }
-
-class Medication {
-  final String name;
-  final String detail;
-  final int quantity;
-  final StockStatus status;
-
-  const Medication({
-    required this.name,
-    required this.detail,
-    required this.quantity,
-    required this.status,
-  });
-}
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
@@ -67,7 +34,9 @@ class _InventoryScreenState extends State<InventoryScreen>
   static const Color _textMid = Color(0xFF8A9B93);
   static const Color _fieldBg = Color(0xFF1C2120);
 
-  final List<Medication> _medications = [];
+  List<Medication> _medications = [];
+  bool _isLoading = true;
+  final _repo = MedicationRepository();
 
   @override
   void initState() {
@@ -78,6 +47,17 @@ class _InventoryScreenState extends State<InventoryScreen>
         .animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
     _animController.forward();
     _searchController.addListener(() => setState(() => _searchQuery = _searchController.text));
+    _loadMedications();
+  }
+
+  Future<void> _loadMedications() async {
+    try {
+      final meds = await _repo.getMedications();
+      if (!mounted) return;
+      setState(() { _medications = meds; _isLoading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -91,8 +71,14 @@ class _InventoryScreenState extends State<InventoryScreen>
       .where((m) => m.name.toLowerCase().contains(_searchQuery.toLowerCase()))
       .toList();
 
+  StockStatus _stockStatusOf(Medication m) {
+    if (m.isCritical) return StockStatus.critical;
+    if (m.isLowStock) return StockStatus.lowStock;
+    return StockStatus.inStock;
+  }
+
   List<Medication> get _lowItems =>
-      _medications.where((m) => m.status != StockStatus.inStock).toList();
+      _medications.where((m) => m.isLowStock || m.isCritical).toList();
 
   int get _totalCount => _medications.length;
   int get _lowCount   => _lowItems.length;
@@ -113,13 +99,7 @@ class _InventoryScreenState extends State<InventoryScreen>
     }
   }
 
-  StockStatus _statusForQuantity(int quantity) {
-    if (quantity <= 0) return StockStatus.critical;
-    if (quantity <= 10) return StockStatus.lowStock;
-    return StockStatus.inStock;
-  }
-
-  Color _cardBorderColor(StockStatus s) {
+Color _cardBorderColor(StockStatus s) {
     switch (s) {
       case StockStatus.inStock:  return _border;
       case StockStatus.lowStock: return _yellow.withOpacity(0.35);
@@ -154,7 +134,12 @@ class _InventoryScreenState extends State<InventoryScreen>
                         ],
                         _buildSearchBar(),
                         const SizedBox(height: 14),
-                        if (_filtered.isEmpty)
+                        if (_isLoading)
+                          const Center(child: Padding(
+                            padding: EdgeInsets.all(32),
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ))
+                        else if (_filtered.isEmpty)
                           Container(
                             width: double.infinity,
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 30),
@@ -313,14 +298,15 @@ class _InventoryScreenState extends State<InventoryScreen>
   // ── Medication card ───────────────────────────────────────────────────────
 
   Widget _buildMedCard(Medication m) {
-    final color = _statusColor(m.status);
+    final status = _stockStatusOf(m);
+    final color = _statusColor(status);
     return Container(
       margin: const EdgeInsets.only(bottom: 9),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
       decoration: BoxDecoration(
         color: _card,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _cardBorderColor(m.status), width: 1),
+        border: Border.all(color: _cardBorderColor(status), width: 1),
       ),
       child: Row(
         children: [
@@ -332,7 +318,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                     style: const TextStyle(color: Colors.white, fontSize: 14,
                         fontWeight: FontWeight.w700)),
                 const SizedBox(height: 3),
-                Text(m.detail,
+                Text(m.unit,
                     style: TextStyle(color: _textDim, fontSize: 11)),
               ],
             ),
@@ -344,7 +330,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                   style: TextStyle(color: color, fontSize: 22,
                       fontWeight: FontWeight.w800)),
               const SizedBox(height: 2),
-              Text(_statusLabel(m.status),
+              Text(_statusLabel(status),
                   style: TextStyle(color: color, fontSize: 9,
                       fontWeight: FontWeight.w700, letterSpacing: 1.2)),
             ],
@@ -482,32 +468,38 @@ class _InventoryScreenState extends State<InventoryScreen>
             ),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               final name = nameController.text.trim();
               final detail = detailController.text.trim();
               final quantity = int.tryParse(quantityController.text.trim()) ?? 0;
 
               if (name.isNotEmpty && detail.isNotEmpty && quantityController.text.isNotEmpty) {
-                setState(() {
-                  _medications.add(Medication(
-                    name: name,
-                    detail: detail,
-                    quantity: quantity,
-                    status: _statusForQuantity(quantity),
-                  ));
-                });
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    backgroundColor: _green,
-                    content: Text(
-                      'Added: $name',
-                      style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
-                    ),
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                  ),
-                );
+                try {
+                  await _repo.createMedication({
+                    'name': name,
+                    'unit': detail,
+                    'quantity': quantity,
+                    'lowStockThreshold': 10,
+                  });
+                  await _loadMedications();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      backgroundColor: _green,
+                      content: Text('Added: $name',
+                          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w600)),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    ));
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      backgroundColor: Colors.redAccent,
+                      content: Text(e.toString().replaceFirst('Exception: ', '')),
+                    ));
+                  }
+                }
               }
             },
             style: ElevatedButton.styleFrom(
