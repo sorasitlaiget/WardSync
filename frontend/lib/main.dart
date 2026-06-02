@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-// TODO: run `flutterfire configure` to generate firebase_options.dart, then uncomment:
-// import 'package:firebase_core/firebase_core.dart';
-// import 'firebase_options.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'theme/app_theme.dart';
+import 'widgets/wardsync_logo.dart';
+import 'screens/nurse/new_patient_screen.dart';
+import 'screens/nurse/triage_detail_screen.dart';
+import 'screens/doctor/doctor_home_screen.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  // await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+void main() {
   runApp(const WardSyncApp());
 }
 
@@ -17,15 +18,161 @@ class WardSyncApp extends StatelessWidget {
     return MaterialApp(
       title: 'WardSync',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark().copyWith(
-        colorScheme: ColorScheme.dark(
-          primary: const Color(0xFF4A7C59),
-          secondary: const Color(0xFF8B4513),
+      theme: AppTheme.dark,
+      home: const _DevRoleSelector(),
+      routes: {
+        '/nurse/new-patient': (_) => const NewPatientScreen(),
+        '/doctor/home': (_) => const DoctorHomeScreen(),
+      },
+    );
+  }
+}
+
+/// Dev launcher — remove when integrating with nurse home screen.
+class _DevRoleSelector extends StatelessWidget {
+  const _DevRoleSelector();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Logo + wordmark
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const WardSyncLogo(size: 52),
+                  const SizedBox(width: 16),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'WARDSYNC',
+                        style: GoogleFonts.rajdhani(
+                          color: AppColors.lime,
+                          fontSize: 30,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 4,
+                        ),
+                      ),
+                      Text(
+                        'FIELD HOSPITAL OS',
+                        style: GoogleFonts.rajdhani(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                          letterSpacing: 3,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceVariant,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'DEV LAUNCHER',
+                  style: GoogleFonts.rajdhani(
+                    color: AppColors.textMuted,
+                    fontSize: 11,
+                    letterSpacing: 2,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 48),
+              _launchButton(
+                context,
+                label: 'NURSE — NEW PATIENT',
+                subtitle: 'Triage Step 1 + Step 2',
+                color: AppColors.dotGreen,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const NewPatientScreen()),
+                ),
+              ),
+              const SizedBox(height: 16),
+              _launchButton(
+                context,
+                label: 'TRIAGE DETAIL #047',
+                subtitle: 'Step 2 only (direct)',
+                color: AppColors.dotYellow,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const TriageDetailScreen(
+                      wristbandNumber: '047',
+                      hasPhoto: true,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              _launchButton(
+                context,
+                label: 'DOCTOR HOME',
+                subtitle: 'Red Room dashboard',
+                color: AppColors.dotRed,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DoctorHomeScreen()),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-      // TODO: replace with GoRouter once screens are ready
-      home: const Scaffold(
-        body: Center(child: Text('WardSync — Loading...')),
+    );
+  }
+
+  Widget _launchButton(
+    BuildContext context, {
+    required String label,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border(left: BorderSide(color: color, width: 3)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: GoogleFonts.rajdhani(
+                color: AppColors.textPrimary,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              style: GoogleFonts.rajdhani(
+                color: AppColors.textSecondary,
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
