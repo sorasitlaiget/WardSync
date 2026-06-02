@@ -7,6 +7,18 @@ import 'screens/nurse/triage_detail_screen.dart';
 import 'screens/doctor/doctor_home_screen.dart';
 
 void main() {
+import 'screens/login.screens.dart' as login;
+import 'screens/register.screens.dart';
+import 'screens/forgot_password.screens.dart';
+import 'screens/nurse/homenurse.screens.dart';
+import 'screens/doctor/homedoctor.screens.dart' as doctor;
+import 'screens/admin/adminhomepage.screens.dart' as admin;
+import 'screens/admin/allpatient.screens.dart' as admin_patients;
+import 'screens/admin/inventory.screens.dart' as admin_inventory;
+import 'screens/admin/roomconfig.screens.dart' as admin_roomconfig;
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const WardSyncApp());
 }
 
@@ -174,6 +186,18 @@ class _DevRoleSelector extends StatelessWidget {
           ],
         ),
       ),
+      initialRoute: login.LoginScreen.routeName,
+      routes: {
+        login.LoginScreen.routeName: (context) => const login.LoginScreen(),
+        RegisterScreen.routeName: (context) => const RegisterScreen(),
+        NurseHomeScreen.routeName: (context) => const NurseHomeScreen(),
+        doctor.DoctorHomeScreen.routeName: (context) => const doctor.DoctorHomeScreen(),
+        admin.AdminOverviewScreen.routeName: (context) => const admin.AdminOverviewScreen(),
+        admin_patients.AllPatientsScreen.routeName: (context) => const admin_patients.AllPatientsScreen(),
+        admin_inventory.InventoryScreen.routeName: (context) => const admin_inventory.InventoryScreen(),
+        admin_roomconfig.RoomConfigScreen.routeName: (context) => const admin_roomconfig.RoomConfigScreen(),
+        ForgotPasswordScreen.routeName: (context) => const ForgotPasswordScreen(),
+      },
     );
   }
 }
