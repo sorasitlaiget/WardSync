@@ -206,7 +206,19 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                 _OverviewTab(
                   vitals: _vitals,
                   status: _currentStatus,
-                  onStatusChange: (s) => setState(() => _currentStatus = s),
+                  canChangeStatus: widget.isDoctor,
+                  onStatusChange: (s) async {
+                    setState(() => _currentStatus = s);
+                    try {
+                      await _repo.updateStatus(widget.patient.id, s);
+                    } catch (e) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text(e.toString().replaceFirst('Exception: ', '')),
+                        backgroundColor: Colors.redAccent,
+                      ));
+                    }
+                  },
                 ),
                 _VitalTab(
                   vitals: _vitals,
@@ -547,11 +559,13 @@ class _OverviewTab extends StatelessWidget {
   final _FormVitals vitals;
   final PatientStatus status;
   final ValueChanged<PatientStatus> onStatusChange;
+  final bool canChangeStatus;
 
   const _OverviewTab({
     required this.vitals,
     required this.status,
     required this.onStatusChange,
+    this.canChangeStatus = true,
   });
 
   @override
@@ -564,10 +578,12 @@ class _OverviewTab extends StatelessWidget {
           _sectionLabel('LATEST VITALS'),
           const SizedBox(height: 10),
           _buildVitalsGrid(),
-          const SizedBox(height: 24),
-          _sectionLabel('CHANGE STATUS'),
-          const SizedBox(height: 10),
-          _buildStatusButtons(context),
+          if (canChangeStatus) ...[
+            const SizedBox(height: 24),
+            _sectionLabel('CHANGE STATUS'),
+            const SizedBox(height: 10),
+            _buildStatusButtons(context),
+          ],
         ],
       ),
     );

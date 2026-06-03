@@ -58,7 +58,12 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen>
   Future<void> _loadData() async {
     try {
       final profile = await _authRepo.getProfile();
-      final room = profile.assignedRoom?.name ?? 'red';
+      if (!mounted) return;
+      if (profile.assignedRoom == null) {
+        setState(() { _profile = profile; _isLoading = false; });
+        return;
+      }
+      final room = profile.assignedRoom!.name;
       final results = await Future.wait([
         _patientRepo.getPatients(room: room),
         _roomRepo.getRoomCapacity(room),

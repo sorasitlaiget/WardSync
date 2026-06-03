@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../widgets/wardsync_logo.dart';
+import '../../../features/auth/repositories/auth_repository.dart';
 import '../../../features/patients/repositories/patient_repository.dart';
 import '../../../shared/models/patient.dart';
+import '../../../shared/models/user_profile.dart';
 import 'new_patient_screen.dart';
 import 'nurse_patient_screen.dart';
 import '../doctor/patient_detail_screen.dart';
@@ -40,7 +42,8 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
   List<Patient> _patients = [];
   bool _isLoading = true;
   final _repo = PatientRepository();
-
+  final _authRepo = AuthRepository();
+  UserProfile? _profile;
 
   @override
   void initState() {
@@ -51,7 +54,15 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
     );
     _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
     _animController.forward();
+    _loadProfile();
     _loadPatients();
+  }
+
+  Future<void> _loadProfile() async {
+    try {
+      final p = await _authRepo.getProfile();
+      if (mounted) setState(() => _profile = p);
+    } catch (_) {}
   }
 
   Future<void> _loadPatients() async {
@@ -205,7 +216,7 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
                 ),
               ),
               Text(
-                'Operator: Nurse K.',
+                'Operator: ${_profile?.name ?? '...'}',
                 style: TextStyle(
                   color: _textDim,
                   fontSize: 10,

@@ -23,6 +23,7 @@ class _NursePatientScreenState extends State<NursePatientScreen>
   static const Color _red = Color(0xFFD94040);
   static const Color _yellow = Color(0xFFE8B840);
   static const Color _grn = Color(0xFF4CAF50);
+  static const Color _blk = Color(0xFF6B7280);
   static const Color _textDim = Color(0xFF5A6B65);
   static const Color _textMid = Color(0xFF8A9B93);
   static const Color _fieldBg = Color(0xFF1C2120);
@@ -285,6 +286,9 @@ class _NursePatientScreenState extends State<NursePatientScreen>
           const SizedBox(width: 8),
           _filterChip(TriageColor.green,
               '• ${_countByColor(TriageColor.green)} GREEN', _grn),
+          const SizedBox(width: 8),
+          _filterChip(TriageColor.black,
+              '• ${_countByColor(TriageColor.black)} BLACK', _blk),
         ],
       ),
     );

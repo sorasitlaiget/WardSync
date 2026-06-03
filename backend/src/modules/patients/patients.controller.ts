@@ -32,6 +32,10 @@ export async function listPatients(req: Request, res: Response, next: NextFuncti
 
     let room: TriageRoom | 'all' | undefined;
     if (user.role === 'doctor') {
+      if (!user.assignedRoom) {
+        res.json({ patients: [], warning: 'Doctor has no assigned room' });
+        return;
+      }
       room = queryRoom === 'all' ? 'all' : (user.assignedRoom as TriageRoom);
     } else {
       room = queryRoom as TriageRoom | 'all' | undefined;
