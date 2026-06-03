@@ -61,6 +61,35 @@ class AuthRepository {
     }
   }
 
+  Future<List<Map<String, dynamic>>> getUsers() async {
+    try {
+      final res = await _dio.get('/api/users');
+      return (res.data as List).cast<Map<String, dynamic>>();
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<void> createAccount({
+    required String email,
+    required String password,
+    required String displayName,
+    required String role,
+    String? assignedRoom,
+  }) async {
+    try {
+      await _dio.post('/api/users', data: {
+        'email': email,
+        'password': password,
+        'displayName': displayName,
+        'role': role,
+        if (assignedRoom != null) 'assignedRoom': assignedRoom,
+      });
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
   Future<void> logout() async {
     await _auth.signOut();
   }

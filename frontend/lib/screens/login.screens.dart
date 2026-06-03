@@ -9,6 +9,7 @@ import 'register.screens.dart';
 import 'nurse/homenurse.screens.dart';
 import 'doctor/homedoctor.screens.dart' as doctor;
 import 'admin/adminhomepage.screens.dart' as admin;
+import 'profile_setup.screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -82,6 +83,11 @@ class _LoginScreenState extends State<LoginScreen>
       );
       if (!mounted) return;
       _saveFcmToken();
+      if (profile.name.trim().isEmpty && profile.role != UserRole.admin) {
+        Navigator.pushReplacement(context,
+            MaterialPageRoute(builder: (_) => ProfileSetupScreen(profile: profile)));
+        return;
+      }
       final nextRoute = profile.role == UserRole.doctor
           ? doctor.DoctorHomeScreen.routeName
           : profile.role == UserRole.admin

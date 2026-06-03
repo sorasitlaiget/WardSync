@@ -506,7 +506,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                                         fontWeight: FontWeight.w600,
                                       )),
                                   subtitle: Text(
-                                      '${med.unit}  ·  stock: ${med.quantity}',
+                                      '${med.dosage}  ·  stock: ${med.quantity}',
                                       style: GoogleFonts.rajdhani(
                                           color: AppColors.textSecondary,
                                           fontSize: 12)),
@@ -521,7 +521,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                                           setState(() {
                                             _medications.add(MedicationItem(
                                               name: med.name,
-                                              dosage: med.unit,
+                                              dosage: med.dosage,
                                             ));
                                           });
                                           Navigator.pop(ctx);

@@ -5,7 +5,7 @@ class ApiConstants {
   // - Android emulator  → http://10.0.2.2:3000
   // - iOS simulator     → http://localhost:3000
   // - Physical device   → http://<your-local-ip>:3000
-  static const String baseUrl = 'http://10.0.2.2:3000';
+  static const String baseUrl = 'http://localhost:3000';
 
   // Auth / Users
   static const String userProfile = '/api/users/profile';
