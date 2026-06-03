@@ -6,10 +6,12 @@ import 'firebase_options.dart';
 import 'theme/app_theme.dart';
 import 'screens/nurse/new_patient_screen.dart';
 import 'screens/doctor/doctor_home_screen.dart';
+import 'screens/doctor/doctor_alert_screen.dart';
 import 'screens/login.screens.dart' as login;
 import 'screens/register.screens.dart';
 import 'screens/forgot_password.screens.dart';
 import 'screens/nurse/homenurse.screens.dart';
+import 'screens/nurse/nurse_patient_screen.dart' as nurse_patients;
 import 'screens/doctor/homedoctor.screens.dart' as doctor;
 import 'screens/admin/adminhomepage.screens.dart' as admin;
 import 'screens/admin/allpatient.screens.dart' as admin_patients;
@@ -45,12 +47,16 @@ class WardSyncApp extends StatelessWidget {
         NurseHomeScreen.routeName: (context) => const NurseHomeScreen(),
         doctor.DoctorHomeScreen.routeName: (context) =>
             const doctor.DoctorHomeScreen(),
+        DoctorAlertScreen.routeName: (context) =>
+            const DoctorAlertScreen(),
         admin.AdminOverviewScreen.routeName: (context) =>
             const admin.AdminOverviewScreen(),
         admin_patients.AllPatientsScreen.routeName: (context) =>
             const admin_patients.AllPatientsScreen(),
         admin_inventory.InventoryScreen.routeName: (context) =>
             const admin_inventory.InventoryScreen(),
+        nurse_patients.NursePatientScreen.routeName: (context) =>
+            const nurse_patients.NursePatientScreen(),
         admin_roomconfig.RoomConfigScreen.routeName: (context) =>
             const admin_roomconfig.RoomConfigScreen(),
         ForgotPasswordScreen.routeName: (context) =>

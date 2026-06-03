@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../widgets/wardsync_logo.dart';
 import '../../../features/patients/repositories/patient_repository.dart';
 import '../../../shared/models/patient.dart';
 import 'new_patient_screen.dart';
+import 'nurse_patient_screen.dart';
 import '../doctor/patient_detail_screen.dart';
 
 // ── Main screen ───────────────────────────────────────────────────────────────
@@ -39,11 +41,6 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
   bool _isLoading = true;
   final _repo = PatientRepository();
 
-  // Filters
-  TriageColor? _filterColor;
-  String? _filterStatus;
-  bool _filterToday = false;
-  final _searchCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -60,12 +57,7 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
   Future<void> _loadPatients() async {
     setState(() => _isLoading = true);
     try {
-      final patients = await _repo.getPatients(
-        triageColor: _filterColor?.name,
-        status: _filterStatus,
-        wristband: _searchCtrl.text.trim().isEmpty ? null : _searchCtrl.text.trim(),
-        today: _filterToday ? true : null,
-      );
+      final patients = await _repo.getPatients();
       if (!mounted) return;
       setState(() {
         _patients = patients;
@@ -87,7 +79,6 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
   @override
   void dispose() {
     _animController.dispose();
-    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -152,8 +143,6 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
                       const SizedBox(height: 16),
                       _buildCountCards(),
                       const SizedBox(height: 20),
-                      _buildFilterBar(),
-                      const SizedBox(height: 16),
                       _buildSectionLabel('RECENT TRIAGE'),
                       const SizedBox(height: 12),
                       if (_isLoading)
@@ -174,7 +163,7 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
                           ),
                         )
                       else
-                        ..._patients.map(_buildPatientCard),
+                        ..._patients.take(4).map(_buildPatientCard),
                       const SizedBox(height: 20),
                       _buildNewPatientButton(),
                     ],
@@ -186,116 +175,6 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
           ),
         ),
       ),
-    );
-  }
-
-  // ── Filter bar ────────────────────────────────────────────────────────────
-
-  Widget _buildFilterBar() {
-    final colors = [
-      (TriageColor.red, _red, 'RED'),
-      (TriageColor.yellow, _yellow, 'YEL'),
-      (TriageColor.green, _grn, 'GRN'),
-      (TriageColor.black, _blk, 'BLK'),
-    ];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Search field
-        SizedBox(
-          height: 40,
-          child: TextField(
-            controller: _searchCtrl,
-            onChanged: (_) => _loadPatients(),
-            style: TextStyle(color: Colors.white, fontSize: 14),
-            decoration: InputDecoration(
-              hintText: 'Search wristband...',
-              hintStyle: TextStyle(color: _textDim, fontSize: 13),
-              prefixIcon: Icon(Icons.search, color: _textDim, size: 18),
-              filled: true,
-              fillColor: const Color(0xFF161A19),
-              contentPadding: EdgeInsets.zero,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: _border),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: _border),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: _green),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        // Triage color chips + TODAY toggle
-        Row(
-          children: [
-            ...colors.map((c) {
-              final (color, hex, label) = c;
-              final selected = _filterColor == color;
-              return Padding(
-                padding: const EdgeInsets.only(right: 6),
-                child: GestureDetector(
-                  onTap: () {
-                    setState(() => _filterColor = selected ? null : color);
-                    _loadPatients();
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 120),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: selected ? hex.withValues(alpha: 0.2) : const Color(0xFF161A19),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                        color: selected ? hex : _border,
-                        width: selected ? 1.5 : 1,
-                      ),
-                    ),
-                    child: Text(label,
-                        style: TextStyle(
-                          color: selected ? hex : _textDim,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1,
-                        )),
-                  ),
-                ),
-              );
-            }),
-            const Spacer(),
-            // TODAY toggle
-            GestureDetector(
-              onTap: () {
-                setState(() => _filterToday = !_filterToday);
-                _loadPatients();
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 120),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: _filterToday ? _green.withValues(alpha: 0.15) : const Color(0xFF161A19),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: _filterToday ? _green : _border,
-                    width: _filterToday ? 1.5 : 1,
-                  ),
-                ),
-                child: Text('TODAY',
-                    style: TextStyle(
-                      color: _filterToday ? _green : _textDim,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1,
-                    )),
-              ),
-            ),
-          ],
-        ),
-      ],
     );
   }
 
@@ -311,11 +190,7 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
       child: Row(
         children: [
           // Hex logo mini
-          SizedBox(
-            width: 32,
-            height: 36,
-            child: CustomPaint(painter: _HexLogoPainter()),
-          ),
+          const WardSyncLogo(size: 32),
           const SizedBox(width: 10),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -574,8 +449,8 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
   Widget _buildBottomNav() {
     final items = [
       (Icons.home_outlined, Icons.home, 'Home'),
-      (Icons.assignment_outlined, Icons.assignment, 'Patients'),
-      (Icons.settings_outlined, Icons.settings, 'Settings'),
+      (Icons.assignment_outlined, Icons.assignment, 'Patient'),
+      (Icons.settings_outlined, Icons.settings, 'Setting'),
     ];
     return Container(
       decoration: BoxDecoration(
@@ -589,6 +464,11 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
           final active = _navIndex == i;
           return GestureDetector(
             onTap: () async {
+              if (i == 1) {
+                Navigator.pushReplacementNamed(
+                    context, NursePatientScreen.routeName);
+                return;
+              }
               if (i == 2) {
                 final confirm = await showDialog<bool>(
                   context: context,
@@ -612,12 +492,24 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
             },
             behavior: HitTestBehavior.opaque,
             child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-              child: Icon(
-                active ? items[i].$2 : items[i].$1,
-                color: active ? _green : _textDim,
-                size: 24,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    active ? items[i].$2 : items[i].$1,
+                    color: active ? _green : _textDim,
+                    size: 24,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    items[i].$3,
+                    style: TextStyle(
+                      color: active ? _green : _textDim,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
               ),
             ),
           );
@@ -627,90 +519,3 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
   }
 }
 
-// ── Hex logo painter (shared across screens) ──────────────────────────────────
-
-class _HexLogoPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final r = size.width * 0.48;
-
-    final hexPath = Path();
-    for (int i = 0; i < 6; i++) {
-      final angle = (i * 60 - 30) * (3.14159265 / 180);
-      final x = cx + r * _cos(angle);
-      final y = cy + r * _sin(angle);
-      i == 0 ? hexPath.moveTo(x, y) : hexPath.lineTo(x, y);
-    }
-    hexPath.close();
-
-    canvas.drawPath(
-      hexPath,
-      Paint()
-        ..color = const Color(0xFF8CBF3F)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.5
-        ..strokeJoin = StrokeJoin.round,
-    );
-
-    final arm = size.width * 0.22;
-    canvas.drawLine(
-      Offset(cx - arm, cy),
-      Offset(cx + arm, cy),
-      Paint()
-        ..color = const Color(0xFF8CBF3F)
-        ..strokeWidth = 3
-        ..strokeCap = StrokeCap.round,
-    );
-    canvas.drawLine(
-      Offset(cx, cy - arm),
-      Offset(cx, cy + arm),
-      Paint()
-        ..color = const Color(0xFF8CBF3F)
-        ..strokeWidth = 3
-        ..strokeCap = StrokeCap.round,
-    );
-
-    final dotColors = [
-      const Color(0xFFE05050),
-      const Color(0xFFF5C842),
-      const Color(0xFF50E070),
-    ];
-    for (int i = 0; i < 3; i++) {
-      final angle = (i * 60 + 90) * (3.14159265 / 180);
-      canvas.drawCircle(
-        Offset(cx + (r + 4) * _cos(angle), cy + (r + 4) * _sin(angle)),
-        3,
-        Paint()..color = dotColors[i],
-      );
-    }
-  }
-
-  double _cos(double x) {
-    const pi = 3.14159265358979;
-    while (x > pi) x -= 2 * pi;
-    while (x < -pi) x += 2 * pi;
-    double result = 1, term = 1;
-    for (int n = 1; n <= 8; n++) {
-      term *= -x * x / ((2 * n - 1) * (2 * n));
-      result += term;
-    }
-    return result;
-  }
-
-  double _sin(double x) {
-    const pi = 3.14159265358979;
-    while (x > pi) x -= 2 * pi;
-    while (x < -pi) x += 2 * pi;
-    double result = x, term = x;
-    for (int n = 1; n <= 8; n++) {
-      term *= -x * x / ((2 * n) * (2 * n + 1));
-      result += term;
-    }
-    return result;
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}

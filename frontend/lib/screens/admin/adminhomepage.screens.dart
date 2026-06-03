@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/wardsync_logo.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../features/rooms/repositories/room_repository.dart';
 import '../../../../features/stats/repositories/stats_repository.dart';
@@ -149,7 +150,7 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen>
       ),
       child: Row(
         children: [
-          SizedBox(width: 32, height: 36, child: CustomPaint(painter: _HexLogoPainter())),
+          const WardSyncLogo(size: 32),
           const SizedBox(width: 10),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -422,6 +423,7 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen>
       Icons.work,
       Icons.meeting_room,
     ];
+    const labels = ['Home', 'Patient', 'Inventory', 'Room Config'];
     return Container(
       decoration: BoxDecoration(
         color: _card,
@@ -443,9 +445,19 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen>
           },
             behavior: HitTestBehavior.opaque,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: Icon(active ? activeItems[i] : items[i],
-                  color: active ? _green : _textDim, size: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(active ? activeItems[i] : items[i],
+                      color: active ? _green : _textDim, size: 24),
+                  const SizedBox(height: 2),
+                  Text(
+                    labels[i],
+                    style: TextStyle(color: active ? _green : _textDim, fontSize: 10),
+                  ),
+                ],
+              ),
             ),
           );
         }),
@@ -454,61 +466,3 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen>
   }
 }
 
-// ── Shared hex logo painter ───────────────────────────────────────────────────
-
-class _HexLogoPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final r = size.width * 0.48;
-
-    final hexPath = Path();
-    for (int i = 0; i < 6; i++) {
-      final angle = (i * 60 - 30) * (3.14159265 / 180);
-      final x = cx + r * _cos(angle);
-      final y = cy + r * _sin(angle);
-      i == 0 ? hexPath.moveTo(x, y) : hexPath.lineTo(x, y);
-    }
-    hexPath.close();
-
-    canvas.drawPath(hexPath, Paint()
-      ..color = const Color(0xFF8CBF3F)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5
-      ..strokeJoin = StrokeJoin.round);
-
-    final arm = size.width * 0.22;
-    final cp = Paint()..color = const Color(0xFF8CBF3F)..strokeWidth = 3..strokeCap = StrokeCap.round;
-    canvas.drawLine(Offset(cx - arm, cy), Offset(cx + arm, cy), cp);
-    canvas.drawLine(Offset(cx, cy - arm), Offset(cx, cy + arm), cp);
-
-    final dotColors = [const Color(0xFFE05050), const Color(0xFFF5C842), const Color(0xFF50E070)];
-    for (int i = 0; i < 3; i++) {
-      final angle = (i * 60 + 90) * (3.14159265 / 180);
-      canvas.drawCircle(Offset(cx + (r + 4) * _cos(angle), cy + (r + 4) * _sin(angle)),
-          3, Paint()..color = dotColors[i]);
-    }
-  }
-
-  double _cos(double x) {
-    const pi = 3.14159265358979;
-    while (x > pi) x -= 2 * pi;
-    while (x < -pi) x += 2 * pi;
-    double result = 1, term = 1;
-    for (int n = 1; n <= 8; n++) { term *= -x * x / ((2 * n - 1) * (2 * n)); result += term; }
-    return result;
-  }
-
-  double _sin(double x) {
-    const pi = 3.14159265358979;
-    while (x > pi) x -= 2 * pi;
-    while (x < -pi) x += 2 * pi;
-    double result = x, term = x;
-    for (int n = 1; n <= 8; n++) { term *= -x * x / ((2 * n) * (2 * n + 1)); result += term; }
-    return result;
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
