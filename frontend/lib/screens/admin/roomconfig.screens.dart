@@ -83,6 +83,13 @@ class _RoomConfigScreenState extends State<RoomConfigScreen>
     }
   }
 
+  // สีตาม occupancy threshold: ปกติ = room color, 80%+ = เหลือง, 95%+ = แดง
+  Color _occupancyColor(double ratio, String room) {
+    if (ratio >= 0.95) return const Color(0xFFD94040);
+    if (ratio >= 0.80) return const Color(0xFFE8B840);
+    return _roomColor(room);
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -192,6 +199,7 @@ class _RoomConfigScreenState extends State<RoomConfigScreen>
 
   Widget _buildRoomCard(RoomCapacity room) {
     final color = _roomColor(room.room);
+    final occupancyColor = _occupancyColor(room.occupancyRatio, room.room);
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -225,7 +233,7 @@ class _RoomConfigScreenState extends State<RoomConfigScreen>
                         fontWeight: FontWeight.w800, letterSpacing: 1.2)),
                 const Spacer(),
                 Text('${(room.occupancyRatio * 100).round()} % FULL',
-                    style: TextStyle(color: color, fontSize: 11,
+                    style: TextStyle(color: occupancyColor, fontSize: 11,
                         fontWeight: FontWeight.w700, letterSpacing: 0.5)),
               ],
             ),
@@ -272,7 +280,7 @@ class _RoomConfigScreenState extends State<RoomConfigScreen>
                 value: room.occupancyRatio,
                 minHeight: 6,
                 backgroundColor: _border,
-                valueColor: AlwaysStoppedAnimation<Color>(color),
+                valueColor: AlwaysStoppedAnimation<Color>(occupancyColor),
               ),
             ),
           ),

@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../features/patients/repositories/patient_repository.dart';
@@ -7,12 +8,12 @@ import '../../widgets/wardsync_app_bar.dart';
 
 class TriageDetailScreen extends StatefulWidget {
   final String wristbandNumber;
-  final bool hasPhoto;
+  final Uint8List? photoBytes;
 
   const TriageDetailScreen({
     super.key,
     required this.wristbandNumber,
-    required this.hasPhoto,
+    this.photoBytes,
   });
 
   @override
@@ -65,12 +66,15 @@ class _TriageDetailScreenState extends State<TriageDetailScreen> {
     if (!_canSubmit) return;
     setState(() => _isSubmitting = true);
     try {
-      await _repo.createPatient({
-        'wristbandNumber': widget.wristbandNumber,
-        'sex': _selectedSex!.name,
-        'ageRange': _selectedAgeRange == AgeRange.senior ? 'elder' : _selectedAgeRange!.name,
-        'triageColor': _selectedColor!.name,
-      });
+      await _repo.createPatient(
+        data: {
+          'wristbandNumber': widget.wristbandNumber,
+          'sex': _selectedSex!.name,
+          'ageRange': _selectedAgeRange == AgeRange.senior ? 'elder' : _selectedAgeRange!.name,
+          'triageColor': _selectedColor!.name,
+        },
+        photoBytes: widget.photoBytes,
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

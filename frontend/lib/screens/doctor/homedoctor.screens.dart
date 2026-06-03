@@ -95,6 +95,24 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen>
 
   String get _roomLabel => '${(_profile?.assignedRoom?.name ?? 'red').toUpperCase()} ROOM';
 
+  Color _triageColor(TriageColor c) {
+    switch (c) {
+      case TriageColor.red:    return const Color(0xFFD94040);
+      case TriageColor.yellow: return const Color(0xFFE8B840);
+      case TriageColor.green:  return const Color(0xFF4CAF50);
+      case TriageColor.black:  return const Color(0xFF6B7280);
+    }
+  }
+
+  Color get _roomColor {
+    switch (_profile?.assignedRoom) {
+      case TriageRoom.yellow: return const Color(0xFFE8B840);
+      case TriageRoom.green:  return const Color(0xFF4CAF50);
+      case TriageRoom.black:  return const Color(0xFF6B7280);
+      default:                return _red;
+    }
+  }
+
   @override
   void dispose() {
     _animController.dispose();
@@ -177,12 +195,12 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              color: _red.withAlpha(38),
-              border: Border.all(color: _red, width: 1.5),
+              color: _roomColor.withAlpha(38),
+              border: Border.all(color: _roomColor, width: 1.5),
               borderRadius: BorderRadius.circular(4),
             ),
             child: Text(_roomLabel,
-                style: TextStyle(color: _red, fontSize: 10,
+                style: TextStyle(color: _roomColor, fontSize: 10,
                     fontWeight: FontWeight.w700, letterSpacing: 0.5)),
           ),
         ],
@@ -206,13 +224,13 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen>
           Row(
             children: [
               Container(width: 4, height: 20, margin: const EdgeInsets.only(right: 10),
-                  decoration: BoxDecoration(color: _red, borderRadius: BorderRadius.circular(2))),
+                  decoration: BoxDecoration(color: _roomColor, borderRadius: BorderRadius.circular(2))),
               Text(_roomLabel,
                   style: const TextStyle(color: Colors.white, fontSize: 16,
                       fontWeight: FontWeight.w800, letterSpacing: 1.5)),
               const Spacer(),
               Text('${rc.occupied}/${rc.capacity} BEDS',
-                  style: TextStyle(color: _red, fontSize: 11,
+                  style: TextStyle(color: _roomColor, fontSize: 11,
                       fontWeight: FontWeight.w700, letterSpacing: 0.8)),
             ],
           ),
@@ -236,7 +254,7 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen>
                       letterSpacing: 1.2, fontWeight: FontWeight.w500)),
               const Spacer(),
               Text('${rc.free} FREE',
-                  style: TextStyle(color: _red, fontSize: 10,
+                  style: TextStyle(color: _roomColor, fontSize: 10,
                       fontWeight: FontWeight.w700, letterSpacing: 1.2)),
             ],
           ),
@@ -249,7 +267,17 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen>
       style: TextStyle(color: _textMid, fontSize: 10,
           letterSpacing: 2.2, fontWeight: FontWeight.w600));
 
+  Widget _avatarPlaceholder(Color tc) => Container(
+        width: 34, height: 34,
+        decoration: BoxDecoration(
+          color: tc.withAlpha(31), shape: BoxShape.circle,
+          border: Border.all(color: tc.withAlpha(77), width: 1),
+        ),
+        child: Icon(Icons.person_outline, color: _textMid, size: 20),
+      );
+
   Widget _buildPatientCard(Patient p) {
+    final tc = _triageColor(p.triageColor);
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
@@ -269,20 +297,19 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen>
           Container(
             width: 4, height: 62,
             decoration: BoxDecoration(
-              color: _red,
+              color: tc,
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(8), bottomLeft: Radius.circular(8)),
             ),
           ),
           const SizedBox(width: 12),
-          Container(
-            width: 34, height: 34,
-            decoration: BoxDecoration(
-              color: _red.withAlpha(31), shape: BoxShape.circle,
-              border: Border.all(color: _red.withAlpha(77), width: 1),
-            ),
-            child: Icon(Icons.person_outline, color: _textMid, size: 20),
-          ),
+          p.photoUrl != null
+              ? ClipOval(
+                  child: Image.network(p.photoUrl!,
+                      width: 34, height: 34, fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _avatarPlaceholder(tc)),
+                )
+              : _avatarPlaceholder(tc),
           const SizedBox(width: 12),
           Expanded(
             child: Column(

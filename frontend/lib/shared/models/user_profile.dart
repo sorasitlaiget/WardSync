@@ -7,8 +7,9 @@ class UserProfile {
   final String email;
   final String name;
   final UserRole role;
-  final TriageRoom? assignedRoom; // doctor only
+  final TriageRoom? assignedRoom;
   final String? fcmToken;
+  final bool isProfileComplete;
 
   const UserProfile({
     required this.uid,
@@ -17,7 +18,16 @@ class UserProfile {
     required this.role,
     this.assignedRoom,
     this.fcmToken,
+    this.isProfileComplete = true,
   });
+
+  bool get needsSetup {
+    if (!isProfileComplete) return true;
+    if (role == UserRole.doctor || role == UserRole.admin) {
+      return assignedRoom == null;
+    }
+    return false;
+  }
 
   factory UserProfile.fromJson(Map<String, dynamic> json) => UserProfile(
         uid: json['uid'] as String,
@@ -28,6 +38,7 @@ class UserProfile {
             ? TriageRoom.values.byName(json['assignedRoom'] as String)
             : null,
         fcmToken: json['fcmToken'] as String?,
+        isProfileComplete: json['isProfileComplete'] as bool? ?? true,
       );
 
   Map<String, dynamic> toJson() => {

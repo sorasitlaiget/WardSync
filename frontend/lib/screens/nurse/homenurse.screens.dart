@@ -39,6 +39,12 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
   bool _isLoading = true;
   final _repo = PatientRepository();
 
+  // Filters
+  TriageColor? _filterColor;
+  String? _filterStatus;
+  bool _filterToday = false;
+  final _searchCtrl = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -52,8 +58,14 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
   }
 
   Future<void> _loadPatients() async {
+    setState(() => _isLoading = true);
     try {
-      final patients = await _repo.getPatients();
+      final patients = await _repo.getPatients(
+        triageColor: _filterColor?.name,
+        status: _filterStatus,
+        wristband: _searchCtrl.text.trim().isEmpty ? null : _searchCtrl.text.trim(),
+        today: _filterToday ? true : null,
+      );
       if (!mounted) return;
       setState(() {
         _patients = patients;
@@ -75,6 +87,7 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
   @override
   void dispose() {
     _animController.dispose();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -138,7 +151,9 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
                     children: [
                       const SizedBox(height: 16),
                       _buildCountCards(),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 20),
+                      _buildFilterBar(),
+                      const SizedBox(height: 16),
                       _buildSectionLabel('RECENT TRIAGE'),
                       const SizedBox(height: 12),
                       if (_isLoading)
@@ -171,6 +186,116 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
           ),
         ),
       ),
+    );
+  }
+
+  // ── Filter bar ────────────────────────────────────────────────────────────
+
+  Widget _buildFilterBar() {
+    final colors = [
+      (TriageColor.red, _red, 'RED'),
+      (TriageColor.yellow, _yellow, 'YEL'),
+      (TriageColor.green, _grn, 'GRN'),
+      (TriageColor.black, _blk, 'BLK'),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Search field
+        SizedBox(
+          height: 40,
+          child: TextField(
+            controller: _searchCtrl,
+            onChanged: (_) => _loadPatients(),
+            style: TextStyle(color: Colors.white, fontSize: 14),
+            decoration: InputDecoration(
+              hintText: 'Search wristband...',
+              hintStyle: TextStyle(color: _textDim, fontSize: 13),
+              prefixIcon: Icon(Icons.search, color: _textDim, size: 18),
+              filled: true,
+              fillColor: const Color(0xFF161A19),
+              contentPadding: EdgeInsets.zero,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: _border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: _border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: _green),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        // Triage color chips + TODAY toggle
+        Row(
+          children: [
+            ...colors.map((c) {
+              final (color, hex, label) = c;
+              final selected = _filterColor == color;
+              return Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() => _filterColor = selected ? null : color);
+                    _loadPatients();
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 120),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: selected ? hex.withValues(alpha: 0.2) : const Color(0xFF161A19),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: selected ? hex : _border,
+                        width: selected ? 1.5 : 1,
+                      ),
+                    ),
+                    child: Text(label,
+                        style: TextStyle(
+                          color: selected ? hex : _textDim,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1,
+                        )),
+                  ),
+                ),
+              );
+            }),
+            const Spacer(),
+            // TODAY toggle
+            GestureDetector(
+              onTap: () {
+                setState(() => _filterToday = !_filterToday);
+                _loadPatients();
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 120),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: _filterToday ? _green.withValues(alpha: 0.15) : const Color(0xFF161A19),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: _filterToday ? _green : _border,
+                    width: _filterToday ? 1.5 : 1,
+                  ),
+                ),
+                child: Text('TODAY',
+                    style: TextStyle(
+                      color: _filterToday ? _green : _textDim,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1,
+                    )),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 

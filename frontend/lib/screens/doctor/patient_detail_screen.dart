@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../features/medications/repositories/medication_repository.dart';
 import '../../../features/patients/repositories/patient_repository.dart';
 import '../../../shared/models/patient.dart';
 import '../../../shared/models/enums.dart';
@@ -13,6 +14,7 @@ class _FormVitals {
   int pulse;
   double temp;
   int spo2;
+  int rr;
   bool hasData;
 
   _FormVitals()
@@ -21,6 +23,7 @@ class _FormVitals {
         pulse = 0,
         temp = 0,
         spo2 = 0,
+        rr = 0,
         hasData = false;
 
   // Thresholds match backend vitals-threshold.ts exactly
@@ -28,6 +31,7 @@ class _FormVitals {
   bool get pulseCritical => hasData && (pulse < 40 || pulse > 150);
   bool get tempCritical => hasData && (temp < 35.0 || temp > 39.5);
   bool get spo2Critical => hasData && spo2 < 90;
+  bool get rrCritical => hasData && (rr < 8 || rr > 30);
 }
 
 // ── Medication item ───────────────────────────────────────────────────────────
@@ -59,6 +63,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
   late TabController _tabController;
   late PatientStatus _currentStatus;
   final _repo = PatientRepository();
+  final _medRepo = MedicationRepository();
 
   // Vitals
   final _FormVitals _vitals = _FormVitals();
@@ -67,15 +72,10 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
   final _pulseCtrl = TextEditingController();
   final _tempCtrl = TextEditingController();
   final _spo2Ctrl = TextEditingController();
+  final _rrCtrl = TextEditingController();
   final _diagnosisCtrl = TextEditingController();
 
-  // Medications
-  final List<MedicationItem> _medications = [
-    MedicationItem(
-        name: 'Normal Saline', dosage: '500ml IV bolus', administered: true),
-    MedicationItem(
-        name: 'Ceftriaxone', dosage: '2g IV stat', administered: true),
-  ];
+  final List<MedicationItem> _medications = [];
 
   @override
   void initState() {
@@ -87,6 +87,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
     _pulseCtrl.text = '';
     _tempCtrl.text = '';
     _spo2Ctrl.text = '';
+    _rrCtrl.text = '';
     _diagnosisCtrl.text = '';
     _loadLatestVitals();
   }
@@ -103,12 +104,14 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
         _vitals.pulse = (latest['heartRate'] as num?)?.toInt() ?? 0;
         _vitals.temp = (latest['temperature'] as num?)?.toDouble() ?? 0;
         _vitals.spo2 = (latest['oxygenSaturation'] as num?)?.toInt() ?? 0;
+        _vitals.rr = (latest['respiratoryRate'] as num?)?.toInt() ?? 0;
         _vitals.hasData = true;
         _sysCtrl.text = _vitals.systolic.toString();
         _diaCtrl.text = _vitals.diastolic.toString();
         _pulseCtrl.text = _vitals.pulse.toString();
         _tempCtrl.text = _vitals.temp.toString();
         _spo2Ctrl.text = _vitals.spo2.toString();
+        _rrCtrl.text = _vitals.rr.toString();
       });
     } catch (_) {}
   }
@@ -121,6 +124,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
     _pulseCtrl.dispose();
     _tempCtrl.dispose();
     _spo2Ctrl.dispose();
+    _rrCtrl.dispose();
     _diagnosisCtrl.dispose();
     super.dispose();
   }
@@ -171,6 +175,16 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
     return '${widget.patient.triageColor.name.toUpperCase()} ROOM : ARRIVED $h:$m';
   }
 
+  Widget _photoPlaceholder() {
+    return Container(
+      width: 56,
+      height: 56,
+      color: AppColors.surfaceVariant,
+      child: const Icon(Icons.person_outline,
+          color: AppColors.textSecondary, size: 32),
+    );
+  }
+
   // ── Build ────────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
@@ -201,6 +215,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                   pulseCtrl: _pulseCtrl,
                   tempCtrl: _tempCtrl,
                   spo2Ctrl: _spo2Ctrl,
+                  rrCtrl: _rrCtrl,
                   onSave: _saveVitals,
                 ),
                 if (widget.isDoctor)
@@ -231,15 +246,17 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
       ),
       child: Row(
         children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: AppColors.surfaceVariant,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(Icons.person_outline,
-                color: AppColors.textSecondary, size: 32),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: widget.patient.photoUrl != null
+                ? Image.network(
+                    widget.patient.photoUrl!,
+                    width: 56,
+                    height: 56,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _photoPlaceholder(),
+                  )
+                : _photoPlaceholder(),
           ),
           const SizedBox(width: 16),
           Column(
@@ -359,6 +376,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
       _vitals.pulse = int.tryParse(_pulseCtrl.text) ?? _vitals.pulse;
       _vitals.temp = double.tryParse(_tempCtrl.text) ?? _vitals.temp;
       _vitals.spo2 = int.tryParse(_spo2Ctrl.text) ?? _vitals.spo2;
+      _vitals.rr = int.tryParse(_rrCtrl.text) ?? _vitals.rr;
     });
     try {
       await _repo.addVitalSigns(widget.patient.id, {
@@ -366,7 +384,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
         'heartRate': _vitals.pulse,
         'temperature': _vitals.temp,
         'oxygenSaturation': _vitals.spo2,
-        'respiratoryRate': 16,
+        'respiratoryRate': _vitals.rr,
       });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -405,84 +423,121 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
     }
   }
 
-  void _showAddMedicationDialog() {
-    final nameCtrl = TextEditingController();
-    final doseCtrl = TextEditingController();
-    showDialog(
+  Future<void> _showAddMedicationDialog() async {
+    List<Medication> inventory = [];
+    bool isLoadingMeds = true;
+
+    await showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: Text(
-          'ADD MEDICATION',
-          style: GoogleFonts.rajdhani(
-            color: AppColors.lime,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.5,
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _dialogField(nameCtrl, 'Drug name'),
-            const SizedBox(height: 12),
-            _dialogField(doseCtrl, 'Dosage (e.g. 500ml IV bolus)'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('CANCEL',
-                style: GoogleFonts.rajdhani(color: AppColors.textSecondary)),
-          ),
-          TextButton(
-            onPressed: () {
-              if (nameCtrl.text.isNotEmpty) {
-                setState(() {
-                  _medications.add(MedicationItem(
-                    name: nameCtrl.text,
-                    dosage: doseCtrl.text,
-                  ));
+      backgroundColor: AppColors.surface,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModal) {
+          if (isLoadingMeds) {
+            () async {
+              try {
+                final list = await _medRepo.getMedications();
+                setModal(() {
+                  inventory = list.where((m) => m.quantity > 0).toList();
+                  isLoadingMeds = false;
                 });
+              } catch (_) {
+                setModal(() => isLoadingMeds = false);
               }
-              Navigator.pop(ctx);
-            },
-            child: Text(
-              'ADD',
-              style: GoogleFonts.rajdhani(
-                color: AppColors.lime,
-                fontWeight: FontWeight.w700,
-              ),
+            }();
+          }
+          return DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: 0.6,
+            maxChildSize: 0.9,
+            builder: (_, scrollCtrl) => Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                  child: Row(
+                    children: [
+                      Text('SELECT MEDICATION',
+                          style: GoogleFonts.rajdhani(
+                            color: AppColors.lime,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.5,
+                          )),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close,
+                            color: AppColors.textSecondary, size: 20),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(color: AppColors.cardBorder, height: 1),
+                Expanded(
+                  child: isLoadingMeds
+                      ? const Center(
+                          child: CircularProgressIndicator(
+                              color: AppColors.lime, strokeWidth: 2))
+                      : inventory.isEmpty
+                          ? Center(
+                              child: Text('No medications available',
+                                  style: GoogleFonts.rajdhani(
+                                      color: AppColors.textSecondary)))
+                          : ListView.separated(
+                              controller: scrollCtrl,
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              itemCount: inventory.length,
+                              separatorBuilder: (_, __) => const Divider(
+                                  color: AppColors.cardBorder, height: 1),
+                              itemBuilder: (_, i) {
+                                final med = inventory[i];
+                                final alreadyAdded = _medications
+                                    .any((m) => m.name == med.name);
+                                return ListTile(
+                                  title: Text(med.name,
+                                      style: GoogleFonts.rajdhani(
+                                        color: alreadyAdded
+                                            ? AppColors.textMuted
+                                            : AppColors.textPrimary,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w600,
+                                      )),
+                                  subtitle: Text(
+                                      '${med.unit}  ·  stock: ${med.quantity}',
+                                      style: GoogleFonts.rajdhani(
+                                          color: AppColors.textSecondary,
+                                          fontSize: 12)),
+                                  trailing: alreadyAdded
+                                      ? const Icon(Icons.check,
+                                          color: AppColors.lime, size: 18)
+                                      : const Icon(Icons.add,
+                                          color: AppColors.lime, size: 20),
+                                  onTap: alreadyAdded
+                                      ? null
+                                      : () {
+                                          setState(() {
+                                            _medications.add(MedicationItem(
+                                              name: med.name,
+                                              dosage: med.unit,
+                                            ));
+                                          });
+                                          Navigator.pop(ctx);
+                                        },
+                                );
+                              },
+                            ),
+                ),
+              ],
             ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
 
-  Widget _dialogField(TextEditingController ctrl, String hint) {
-    return TextField(
-      controller: ctrl,
-      style: GoogleFonts.rajdhani(
-          color: AppColors.textPrimary, fontSize: 14),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle:
-            GoogleFonts.rajdhani(color: AppColors.textMuted, fontSize: 13),
-        filled: true,
-        fillColor: AppColors.surfaceVariant,
-        enabledBorder: OutlineInputBorder(
-          borderSide: const BorderSide(color: AppColors.cardBorder),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderSide: const BorderSide(color: AppColors.lime),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      ),
-    );
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -567,6 +622,19 @@ class _OverviewTab extends StatelessWidget {
               unit: '%',
               critical: vitals.spo2Critical,
             )),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(child: _vitalCard(
+              label: 'RESP RATE',
+              value: vitals.rr.toString(),
+              unit: '/min',
+              critical: vitals.rrCritical,
+            )),
+            const SizedBox(width: 10),
+            Expanded(child: Container()),
           ],
         ),
       ],
@@ -718,6 +786,7 @@ class _VitalTab extends StatelessWidget {
   final TextEditingController pulseCtrl;
   final TextEditingController tempCtrl;
   final TextEditingController spo2Ctrl;
+  final TextEditingController rrCtrl;
   final VoidCallback onSave;
 
   const _VitalTab({
@@ -727,6 +796,7 @@ class _VitalTab extends StatelessWidget {
     required this.pulseCtrl,
     required this.tempCtrl,
     required this.spo2Ctrl,
+    required this.rrCtrl,
     required this.onSave,
   });
 
@@ -789,6 +859,10 @@ class _VitalTab extends StatelessWidget {
                     ),
                   ],
                 ),
+                const SizedBox(height: 16),
+                _fieldLabel('RESPIRATORY RATE (breaths/min)'),
+                const SizedBox(height: 8),
+                _numField(rrCtrl, fullWidth: true),
               ],
             ),
           ),

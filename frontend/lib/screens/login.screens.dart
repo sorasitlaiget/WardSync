@@ -1,5 +1,7 @@
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import '../../../features/auth/repositories/auth_repository.dart';
+import '../../../features/notifications/repositories/notification_repository.dart';
 import '../../../shared/models/enums.dart';
 import 'forgot_password.screens.dart';
 import 'register.screens.dart';
@@ -59,6 +61,16 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
+  Future<void> _saveFcmToken() async {
+    try {
+      await FirebaseMessaging.instance.requestPermission();
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token != null) {
+        await NotificationRepository().registerFcmToken(token);
+      }
+    } catch (_) {}
+  }
+
   Future<void> _authenticate() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
@@ -68,6 +80,7 @@ class _LoginScreenState extends State<LoginScreen>
         _passcodeController.text,
       );
       if (!mounted) return;
+      _saveFcmToken();
       final nextRoute = profile.role == UserRole.doctor
           ? doctor.DoctorHomeScreen.routeName
           : profile.role == UserRole.admin

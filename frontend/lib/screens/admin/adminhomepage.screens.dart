@@ -180,11 +180,12 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen>
   // ── Stat cards (45 total / 12 active) ────────────────────────────────────
 
   Widget _buildStatCards() {
+    final activeNow = _rooms.fold<int>(0, (sum, r) => sum + r.occupied);
     return Row(
       children: [
         Expanded(child: _statCard('${_stats?.totalToday ?? '--'}', 'TOTAL  TODAY')),
         const SizedBox(width: 12),
-        Expanded(child: _statCard('${_stats?.activePatients ?? '--'}', 'ACTIVE  NOW')),
+        Expanded(child: _statCard('$activeNow', 'ACTIVE  NOW')),
       ],
     );
   }

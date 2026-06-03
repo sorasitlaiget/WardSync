@@ -1,5 +1,6 @@
 import multer from 'multer';
 import { storage } from '../../config/firebase.config';
+import { env } from '../../config/env.config';
 
 export const uploadMiddleware = multer({
   storage: multer.memoryStorage(),
@@ -23,5 +24,12 @@ export async function uploadToStorage(file: Express.Multer.File): Promise<string
   });
 
   await bucketFile.makePublic();
-  return bucketFile.publicUrl();
+  let url = bucketFile.publicUrl();
+
+  // Android emulator ไม่สามารถเข้า 127.0.0.1 ได้ ต้องใช้ 10.0.2.2 แทน
+  if (env.useFirebaseEmulator) {
+    url = url.replace('127.0.0.1', '10.0.2.2');
+  }
+
+  return url;
 }

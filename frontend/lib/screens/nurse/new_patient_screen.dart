@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/wardsync_app_bar.dart';
 import 'triage_detail_screen.dart';
@@ -13,8 +14,11 @@ class NewPatientScreen extends StatefulWidget {
 }
 
 class _NewPatientScreenState extends State<NewPatientScreen> {
-  String _wristbandNumber = '047';
-  bool _hasPhoto = false;
+  String _wristbandNumber = '001';
+  Uint8List? _photoBytes;
+  final ImagePicker _picker = ImagePicker();
+
+  bool get _hasPhoto => _photoBytes != null;
 
   void _showNumberPad() {
     final controller = TextEditingController(text: _wristbandNumber);
@@ -92,13 +96,107 @@ class _NewPatientScreenState extends State<NewPatientScreen> {
     );
   }
 
-  void _takePhoto() {
-    setState(() => _hasPhoto = true);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Photo captured'),
-        backgroundColor: AppColors.surface,
-        duration: Duration(seconds: 1),
+  Future<void> _showPhotoOptions() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.cardBorder,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'PATIENT PHOTO',
+              style: GoogleFonts.rajdhani(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+                letterSpacing: 2,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _photoOptionTile(
+              icon: Icons.camera_alt_outlined,
+              label: 'TAKE PHOTO',
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            const SizedBox(height: 10),
+            _photoOptionTile(
+              icon: Icons.photo_library_outlined,
+              label: 'CHOOSE FROM GALLERY',
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
+    try {
+      final XFile? file = await _picker.pickImage(
+        source: source,
+        imageQuality: 80,
+        maxWidth: 1024,
+        maxHeight: 1024,
+      );
+      if (file == null) return;
+      final bytes = await file.readAsBytes();
+      setState(() => _photoBytes = bytes);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not access camera: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  Widget _photoOptionTile({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        height: 52,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceVariant,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.cardBorder),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: AppColors.lime, size: 20),
+            const SizedBox(width: 10),
+            Text(
+              label,
+              style: GoogleFonts.rajdhani(
+                color: AppColors.textPrimary,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.5,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -118,7 +216,7 @@ class _NewPatientScreenState extends State<NewPatientScreen> {
       MaterialPageRoute(
         builder: (_) => TriageDetailScreen(
           wristbandNumber: _wristbandNumber,
-          hasPhoto: _hasPhoto,
+          photoBytes: _photoBytes,
         ),
       ),
     );
@@ -128,9 +226,7 @@ class _NewPatientScreenState extends State<NewPatientScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: WardSyncAppBar(
-        title: 'NEW PATIENT',
-      ),
+      appBar: WardSyncAppBar(title: 'NEW PATIENT'),
       body: Column(
         children: [
           _buildStepIndicator(),
@@ -263,29 +359,71 @@ class _NewPatientScreenState extends State<NewPatientScreen> {
         ),
         const SizedBox(height: 12),
         GestureDetector(
-          onTap: _takePhoto,
+          onTap: _hasPhoto ? null : _showPhotoOptions,
           child: Container(
             width: double.infinity,
             height: 200,
             decoration: BoxDecoration(
               color: AppColors.surfaceVariant,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.cardBorder),
+              border: Border.all(
+                color: _hasPhoto ? AppColors.lime.withValues(alpha: 0.4) : AppColors.cardBorder,
+              ),
             ),
+            clipBehavior: Clip.antiAlias,
             child: _hasPhoto
-                ? Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                ? Stack(
+                    fit: StackFit.expand,
                     children: [
-                      const Icon(Icons.check_circle,
-                          color: AppColors.lime, size: 60),
-                      const SizedBox(height: 10),
-                      Text(
-                        'PHOTO CAPTURED',
-                        style: GoogleFonts.rajdhani(
-                          color: AppColors.lime,
-                          fontSize: 13,
-                          letterSpacing: 2,
-                          fontWeight: FontWeight.w700,
+                      Image.memory(
+                        _photoBytes!,
+                        fit: BoxFit.cover,
+                      ),
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withValues(alpha: 0.5),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const Positioned(
+                        bottom: 12,
+                        left: 0,
+                        right: 0,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.check_circle,
+                                color: AppColors.lime, size: 18),
+                            SizedBox(width: 6),
+                          ],
+                        ),
+                      ),
+                      Positioned(
+                        bottom: 8,
+                        left: 0,
+                        right: 0,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.check_circle,
+                                color: AppColors.lime, size: 18),
+                            const SizedBox(width: 6),
+                            Text(
+                              'PHOTO CAPTURED',
+                              style: GoogleFonts.rajdhani(
+                                color: AppColors.lime,
+                                fontSize: 13,
+                                letterSpacing: 2,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -322,9 +460,10 @@ class _NewPatientScreenState extends State<NewPatientScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // RETAKE — top
           GestureDetector(
-            onTap: () => setState(() => _hasPhoto = false),
+            onTap: _hasPhoto
+                ? () => setState(() => _photoBytes = null)
+                : _showPhotoOptions,
             child: Container(
               width: double.infinity,
               height: 52,
@@ -335,7 +474,7 @@ class _NewPatientScreenState extends State<NewPatientScreen> {
               ),
               alignment: Alignment.center,
               child: Text(
-                'RETAKE',
+                _hasPhoto ? 'RETAKE' : 'TAKE PHOTO',
                 style: GoogleFonts.rajdhani(
                   color: AppColors.textPrimary,
                   fontSize: 15,
@@ -346,7 +485,6 @@ class _NewPatientScreenState extends State<NewPatientScreen> {
             ),
           ),
           const SizedBox(height: 10),
-          // NEXT → — bottom
           GestureDetector(
             onTap: _onNext,
             child: Container(

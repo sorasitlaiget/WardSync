@@ -52,6 +52,15 @@ class AuthRepository {
     }
   }
 
+  Future<UserProfile> updateProfile(Map<String, dynamic> data) async {
+    try {
+      final res = await _dio.patch(ApiConstants.userProfile, data: data);
+      return UserProfile.fromJson(res.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
   Future<void> logout() async {
     await _auth.signOut();
   }

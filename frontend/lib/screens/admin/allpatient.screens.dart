@@ -446,7 +446,7 @@ class _AllPatientsScreenState extends State<AllPatientsScreen>
                 if (id.isNotEmpty) {
                   Navigator.pop(ctx);
                   try {
-                    await _repo.createPatient({
+                    await _repo.createPatient(data: {
                       'wristbandNumber': id,
                       'sex': selectedGender.name,
                       'ageRange': selectedAge == AgeRange.elder ? 'elder' : selectedAge.name,
