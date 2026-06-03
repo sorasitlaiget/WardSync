@@ -1,5 +1,6 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import '../widgets/wardsync_logo.dart';
 import '../../../features/auth/repositories/auth_repository.dart';
 import '../../../features/notifications/repositories/notification_repository.dart';
 import '../../../shared/models/enums.dart';
@@ -143,7 +144,7 @@ class _LoginScreenState extends State<LoginScreen>
                             const SizedBox(height: 16),
 
                             // Hexagon Logo
-                            _WardSyncHexLogo(),
+                            const WardSyncLogo(size: 80),
 
                             const SizedBox(height: 22),
 
@@ -386,121 +387,3 @@ class _LoginScreenState extends State<LoginScreen>
   }
 }
 
-/// Custom hexagon logo painter matching the WardSync brand
-class _WardSyncHexLogo extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 80,
-      height: 90,
-      child: CustomPaint(
-        painter: _HexLogoPainter(),
-      ),
-    );
-  }
-}
-
-class _HexLogoPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final r = size.width * 0.48;
-
-    // Hexagon outline
-    final hexPath = Path();
-    for (int i = 0; i < 6; i++) {
-      final angle = (i * 60 - 30) * (3.14159265 / 180);
-      final x = cx + r * _cos(angle);
-      final y = cy + r * _sin(angle);
-      if (i == 0) {
-        hexPath.moveTo(x, y);
-      } else {
-        hexPath.lineTo(x, y);
-      }
-    }
-    hexPath.close();
-
-    final hexPaint = Paint()
-      ..color = const Color(0xFF8CBF3F)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.5
-      ..strokeJoin = StrokeJoin.round;
-    canvas.drawPath(hexPath, hexPaint);
-
-    // Inner cross / plus sign
-    final crossPaint = Paint()
-      ..color = const Color(0xFF8CBF3F)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4.5
-      ..strokeCap = StrokeCap.round;
-
-    final armLen = size.width * 0.22;
-    // Horizontal
-    canvas.drawLine(
-        Offset(cx - armLen, cy), Offset(cx + armLen, cy), crossPaint);
-    // Vertical
-    canvas.drawLine(
-        Offset(cx, cy - armLen), Offset(cx, cy + armLen), crossPaint);
-
-    // Corner dots (red, yellow, green — top 3 vertices)
-    final dotColors = [
-      const Color(0xFFE05050), // red
-      const Color(0xFFF5C842), // yellow
-      const Color(0xFF50E070), // green
-    ];
-    for (int i = 0; i < 3; i++) {
-      final angle = (i * 60 + 90) * (3.14159265 / 180);
-      final x = cx + (r + 5) * _cos(angle);
-      final y = cy + (r + 5) * _sin(angle);
-      canvas.drawCircle(
-        Offset(x, y),
-        4,
-        Paint()..color = dotColors[i],
-      );
-    }
-  }
-
-  double _cos(double rad) => _mathCos(rad);
-  double _sin(double rad) => _mathSin(rad);
-
-  double _mathCos(double x) {
-    // Taylor series approximation sufficient for hex angles
-    return _dartCos(x);
-  }
-
-  double _mathSin(double x) {
-    return _dartSin(x);
-  }
-
-  // Use dart:math
-  double _dartCos(double x) => _cosSin(x, true);
-  double _dartSin(double x) => _cosSin(x, false);
-
-  double _cosSin(double x, bool isCos) {
-    // Normalize x to [-pi, pi]
-    const pi = 3.14159265358979;
-    while (x > pi) x -= 2 * pi;
-    while (x < -pi) x += 2 * pi;
-    if (isCos) {
-      double result = 1;
-      double term = 1;
-      for (int n = 1; n <= 8; n++) {
-        term *= -x * x / ((2 * n - 1) * (2 * n));
-        result += term;
-      }
-      return result;
-    } else {
-      double result = x;
-      double term = x;
-      for (int n = 1; n <= 8; n++) {
-        term *= -x * x / ((2 * n) * (2 * n + 1));
-        result += term;
-      }
-      return result;
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}

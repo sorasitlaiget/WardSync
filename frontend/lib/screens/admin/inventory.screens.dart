@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/wardsync_logo.dart';
 import '../../../../features/medications/repositories/medication_repository.dart';
 
 enum StockStatus { inStock, lowStock, critical }
@@ -201,7 +202,7 @@ Color _cardBorderColor(StockStatus s) {
       ),
       child: Row(
         children: [
-          SizedBox(width: 32, height: 36, child: CustomPaint(painter: _HexLogoPainter())),
+          const WardSyncLogo(size: 32),
           const SizedBox(width: 10),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -521,6 +522,7 @@ Color _cardBorderColor(StockStatus s) {
   Widget _buildBottomNav() {
     final outlined = [Icons.home_outlined, Icons.person_outline, Icons.work_outline, Icons.settings_outlined];
     final filled   = [Icons.home,          Icons.person,         Icons.work,          Icons.settings];
+    const labels   = ['Home', 'Patient', 'Inventory', 'Room Config'];
     return Container(
       decoration: BoxDecoration(
         color: _card,
@@ -542,9 +544,19 @@ Color _cardBorderColor(StockStatus s) {
             },
             behavior: HitTestBehavior.opaque,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: Icon(active ? filled[i] : outlined[i],
-                  color: active ? _green : _textDim, size: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(active ? filled[i] : outlined[i],
+                      color: active ? _green : _textDim, size: 24),
+                  const SizedBox(height: 2),
+                  Text(
+                    labels[i],
+                    style: TextStyle(color: active ? _green : _textDim, fontSize: 10),
+                  ),
+                ],
+              ),
             ),
           );
         }),
@@ -553,49 +565,3 @@ Color _cardBorderColor(StockStatus s) {
   }
 }
 
-// ── Shared hex logo painter ───────────────────────────────────────────────────
-
-class _HexLogoPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2, cy = size.height / 2, r = size.width * 0.48;
-    final hexPath = Path();
-    for (int i = 0; i < 6; i++) {
-      final a = (i * 60 - 30) * (3.14159265 / 180);
-      final x = cx + r * _cos(a), y = cy + r * _sin(a);
-      i == 0 ? hexPath.moveTo(x, y) : hexPath.lineTo(x, y);
-    }
-    hexPath.close();
-    canvas.drawPath(hexPath, Paint()
-      ..color = const Color(0xFF8CBF3F)..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5..strokeJoin = StrokeJoin.round);
-    final arm = size.width * 0.22;
-    final cp = Paint()..color = const Color(0xFF8CBF3F)..strokeWidth = 3..strokeCap = StrokeCap.round;
-    canvas.drawLine(Offset(cx - arm, cy), Offset(cx + arm, cy), cp);
-    canvas.drawLine(Offset(cx, cy - arm), Offset(cx, cy + arm), cp);
-    final dots = [const Color(0xFFE05050), const Color(0xFFF5C842), const Color(0xFF50E070)];
-    for (int i = 0; i < 3; i++) {
-      final a = (i * 60 + 90) * (3.14159265 / 180);
-      canvas.drawCircle(Offset(cx + (r + 4) * _cos(a), cy + (r + 4) * _sin(a)), 3, Paint()..color = dots[i]);
-    }
-  }
-
-  double _cos(double x) {
-    const pi = 3.14159265358979;
-    while (x > pi) x -= 2 * pi; while (x < -pi) x += 2 * pi;
-    double r = 1, t = 1;
-    for (int n = 1; n <= 8; n++) { t *= -x * x / ((2*n-1)*(2*n)); r += t; }
-    return r;
-  }
-
-  double _sin(double x) {
-    const pi = 3.14159265358979;
-    while (x > pi) x -= 2 * pi; while (x < -pi) x += 2 * pi;
-    double r = x, t = x;
-    for (int n = 1; n <= 8; n++) { t *= -x * x / ((2*n)*(2*n+1)); r += t; }
-    return r;
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}

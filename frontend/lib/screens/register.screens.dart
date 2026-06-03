@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../features/auth/repositories/auth_repository.dart';
+import '../widgets/wardsync_logo.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -150,7 +151,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                           const SizedBox(height: 20),
 
                           // Hex Logo
-                          _WardSyncHexLogo(),
+                          const WardSyncLogo(size: 80),
 
                           const SizedBox(height: 18),
 
@@ -465,93 +466,3 @@ class _RegisterScreenState extends State<RegisterScreen>
   }
 }
 
-// ── Shared hex logo (identical to login screen) ──────────────────────────────
-
-class _WardSyncHexLogo extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 80,
-      height: 90,
-      child: CustomPaint(painter: _HexLogoPainter()),
-    );
-  }
-}
-
-class _HexLogoPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final r = size.width * 0.48;
-
-    final hexPath = Path();
-    for (int i = 0; i < 6; i++) {
-      final angle = (i * 60 - 30) * (3.14159265 / 180);
-      final x = cx + r * _cos(angle);
-      final y = cy + r * _sin(angle);
-      i == 0 ? hexPath.moveTo(x, y) : hexPath.lineTo(x, y);
-    }
-    hexPath.close();
-
-    canvas.drawPath(
-      hexPath,
-      Paint()
-        ..color = const Color(0xFF8CBF3F)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3.5
-        ..strokeJoin = StrokeJoin.round,
-    );
-
-    final crossPaint = Paint()
-      ..color = const Color(0xFF8CBF3F)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4.5
-      ..strokeCap = StrokeCap.round;
-
-    final arm = size.width * 0.22;
-    canvas.drawLine(Offset(cx - arm, cy), Offset(cx + arm, cy), crossPaint);
-    canvas.drawLine(Offset(cx, cy - arm), Offset(cx, cy + arm), crossPaint);
-
-    final dotColors = [
-      const Color(0xFFE05050),
-      const Color(0xFFF5C842),
-      const Color(0xFF50E070),
-    ];
-    for (int i = 0; i < 3; i++) {
-      final angle = (i * 60 + 90) * (3.14159265 / 180);
-      canvas.drawCircle(
-        Offset(cx + (r + 5) * _cos(angle), cy + (r + 5) * _sin(angle)),
-        4,
-        Paint()..color = dotColors[i],
-      );
-    }
-  }
-
-  double _cos(double x) {
-    const pi = 3.14159265358979;
-    while (x > pi) x -= 2 * pi;
-    while (x < -pi) x += 2 * pi;
-    double result = 1, term = 1;
-    for (int n = 1; n <= 8; n++) {
-      term *= -x * x / ((2 * n - 1) * (2 * n));
-      result += term;
-    }
-    return result;
-  }
-
-  double _sin(double x) {
-    const pi = 3.14159265358979;
-    while (x > pi) x -= 2 * pi;
-    while (x < -pi) x += 2 * pi;
-    double result = x, term = x;
-    for (int n = 1; n <= 8; n++) {
-      term *= -x * x / ((2 * n) * (2 * n + 1));
-      result += term;
-    }
-    return result;
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
