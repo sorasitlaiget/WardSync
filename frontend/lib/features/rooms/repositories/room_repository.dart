@@ -18,8 +18,8 @@ class RoomCapacity {
 
   factory RoomCapacity.fromJson(Map<String, dynamic> json) => RoomCapacity(
         room: json['room'] as String,
-        capacity: (json['capacity'] as num).toInt(),
-        occupied: (json['occupied'] as num?)?.toInt() ?? 0,
+        capacity: (json['maxCapacity'] as num).toInt(),
+        occupied: (json['current'] as num?)?.toInt() ?? 0,
       );
 }
 

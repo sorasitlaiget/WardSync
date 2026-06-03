@@ -25,7 +25,8 @@ class PatientRepository {
           if (status != null) 'status': status,
         },
       );
-      return (res.data as List).map((e) => Patient.fromJson(e as Map<String, dynamic>)).toList();
+      final list = (res.data as Map<String, dynamic>)['patients'] as List;
+      return list.map((e) => Patient.fromJson(e as Map<String, dynamic>)).toList();
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
     }
@@ -43,6 +44,15 @@ class PatientRepository {
   Future<void> updateStatus(String id, PatientStatus status) async {
     try {
       await _dio.patch(ApiConstants.patientStatus(id), data: {'status': status.name});
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getVitalSigns(String id) async {
+    try {
+      final res = await _dio.get(ApiConstants.patientVitals(id));
+      return (res.data as List).cast<Map<String, dynamic>>();
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
     }

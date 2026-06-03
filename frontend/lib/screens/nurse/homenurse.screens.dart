@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../features/patients/repositories/patient_repository.dart';
 import '../../../shared/models/patient.dart';
 import 'new_patient_screen.dart';
+import '../doctor/patient_detail_screen.dart';
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 
@@ -303,7 +305,14 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
 
   Widget _buildPatientCard(Patient p) {
     final color = _triageColor(p.triageColor);
-    return Container(
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PatientDetailScreen(patient: p, isDoctor: false),
+        ),
+      ).then((_) => _loadPatients()),
+      child: Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         color: _card,
@@ -400,6 +409,7 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
           ),
         ],
       ),
+    ),
     );
   }
 
@@ -453,7 +463,28 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
         children: List.generate(items.length, (i) {
           final active = _navIndex == i;
           return GestureDetector(
-            onTap: () => setState(() => _navIndex = i),
+            onTap: () async {
+              if (i == 2) {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    backgroundColor: _card,
+                    title: const Text('Logout', style: TextStyle(color: Colors.white)),
+                    content: const Text('Are you sure?', style: TextStyle(color: Colors.white70)),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                      TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Logout', style: TextStyle(color: Colors.red))),
+                    ],
+                  ),
+                );
+                if (confirm == true) {
+                  await FirebaseAuth.instance.signOut();
+                  if (mounted) Navigator.pushNamedAndRemoveUntil(context, '/', (_) => false);
+                }
+                return;
+              }
+              setState(() => _navIndex = i);
+            },
             behavior: HitTestBehavior.opaque,
             child: Padding(
               padding:

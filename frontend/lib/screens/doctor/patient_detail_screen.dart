@@ -13,18 +13,21 @@ class _FormVitals {
   int pulse;
   double temp;
   int spo2;
+  bool hasData;
 
   _FormVitals()
-      : systolic = 80,
-        diastolic = 50,
-        pulse = 130,
-        temp = 38.2,
-        spo2 = 94;
+      : systolic = 0,
+        diastolic = 0,
+        pulse = 0,
+        temp = 0,
+        spo2 = 0,
+        hasData = false;
 
-  bool get bpCritical => systolic < 90 || diastolic < 60;
-  bool get pulseCritical => pulse > 120 || pulse < 50;
-  bool get tempCritical => temp > 38.5 || temp < 35.0;
-  bool get spo2Critical => spo2 < 95;
+  // Thresholds match backend vitals-threshold.ts exactly
+  bool get bpCritical => hasData && (systolic < 90 || systolic > 180 || diastolic < 60 || diastolic > 120);
+  bool get pulseCritical => hasData && (pulse < 40 || pulse > 150);
+  bool get tempCritical => hasData && (temp < 35.0 || temp > 39.5);
+  bool get spo2Critical => hasData && spo2 < 90;
 }
 
 // ── Medication item ───────────────────────────────────────────────────────────
@@ -43,8 +46,9 @@ class MedicationItem {
 // ── Main screen ───────────────────────────────────────────────────────────────
 class PatientDetailScreen extends StatefulWidget {
   final Patient patient;
+  final bool isDoctor;
 
-  const PatientDetailScreen({super.key, required this.patient});
+  const PatientDetailScreen({super.key, required this.patient, this.isDoctor = true});
 
   @override
   State<PatientDetailScreen> createState() => _PatientDetailScreenState();
@@ -76,15 +80,37 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: widget.isDoctor ? 3 : 2, vsync: this);
     _currentStatus = widget.patient.status;
-    _sysCtrl.text = _vitals.systolic.toString();
-    _diaCtrl.text = _vitals.diastolic.toString();
-    _pulseCtrl.text = _vitals.pulse.toString();
-    _tempCtrl.text = _vitals.temp.toString();
-    _spo2Ctrl.text = _vitals.spo2.toString();
-    _diagnosisCtrl.text =
-        'Suspected sepsis Hypotensive, tachy cardic Start fluidresuscitation';
+    _sysCtrl.text = '';
+    _diaCtrl.text = '';
+    _pulseCtrl.text = '';
+    _tempCtrl.text = '';
+    _spo2Ctrl.text = '';
+    _diagnosisCtrl.text = '';
+    _loadLatestVitals();
+  }
+
+  Future<void> _loadLatestVitals() async {
+    try {
+      final list = await _repo.getVitalSigns(widget.patient.id);
+      if (list.isEmpty || !mounted) return;
+      final latest = list.first;
+      final bp = (latest['bloodPressure'] as String? ?? '0/0').split('/');
+      setState(() {
+        _vitals.systolic = int.tryParse(bp.isNotEmpty ? bp[0] : '0') ?? 0;
+        _vitals.diastolic = int.tryParse(bp.length > 1 ? bp[1] : '0') ?? 0;
+        _vitals.pulse = (latest['heartRate'] as num?)?.toInt() ?? 0;
+        _vitals.temp = (latest['temperature'] as num?)?.toDouble() ?? 0;
+        _vitals.spo2 = (latest['oxygenSaturation'] as num?)?.toInt() ?? 0;
+        _vitals.hasData = true;
+        _sysCtrl.text = _vitals.systolic.toString();
+        _diaCtrl.text = _vitals.diastolic.toString();
+        _pulseCtrl.text = _vitals.pulse.toString();
+        _tempCtrl.text = _vitals.temp.toString();
+        _spo2Ctrl.text = _vitals.spo2.toString();
+      });
+    } catch (_) {}
   }
 
   @override
@@ -177,12 +203,13 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                   spo2Ctrl: _spo2Ctrl,
                   onSave: _saveVitals,
                 ),
-                _TreatmentTab(
-                  diagnosisCtrl: _diagnosisCtrl,
-                  medications: _medications,
-                  onAddMedication: _showAddMedicationDialog,
-                  onSave: _saveTreatment,
-                ),
+                if (widget.isDoctor)
+                  _TreatmentTab(
+                    diagnosisCtrl: _diagnosisCtrl,
+                    medications: _medications,
+                    onAddMedication: _showAddMedicationDialog,
+                    onSave: _saveTreatment,
+                  ),
               ],
             ),
           ),
@@ -315,10 +342,10 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
           fontWeight: FontWeight.w600,
           letterSpacing: 1.5,
         ),
-        tabs: const [
-          Tab(text: 'OVERVIEW'),
-          Tab(text: 'VITAL'),
-          Tab(text: 'TREATMENT'),
+        tabs: [
+          const Tab(text: 'OVERVIEW'),
+          const Tab(text: 'VITAL'),
+          if (widget.isDoctor) const Tab(text: 'TREATMENT'),
         ],
       ),
     );
@@ -335,11 +362,11 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
     });
     try {
       await _repo.addVitalSigns(widget.patient.id, {
-        'systolic': _vitals.systolic,
-        'diastolic': _vitals.diastolic,
-        'pulse': _vitals.pulse,
+        'bloodPressure': '${_vitals.systolic}/${_vitals.diastolic}',
+        'heartRate': _vitals.pulse,
         'temperature': _vitals.temp,
-        'spo2': _vitals.spo2,
+        'oxygenSaturation': _vitals.spo2,
+        'respiratoryRate': 16,
       });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -360,7 +387,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
     try {
       await _repo.addTreatment(widget.patient.id, {
         'diagnosis': _diagnosisCtrl.text,
-        'medication': _medications.map((m) => '${m.name} ${m.dosage}').join(', '),
+        'treatment': _medications.map((m) => '${m.name} ${m.dosage}').join(', '),
+        'notes': '',
       });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
