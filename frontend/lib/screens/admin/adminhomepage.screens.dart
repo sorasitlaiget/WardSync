@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../features/rooms/repositories/room_repository.dart';
 import '../../../../features/stats/repositories/stats_repository.dart';
 
@@ -172,6 +173,100 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen>
                 style: TextStyle(color: _green, fontSize: 10,
                     fontWeight: FontWeight.w800, letterSpacing: 1.5)),
           ),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (_) => Dialog(
+                  backgroundColor: Colors.transparent,
+                  child: Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: _card,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFD94040).withAlpha(80), width: 1),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 52, height: 52,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFD94040).withAlpha(25),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: const Color(0xFFD94040).withAlpha(80)),
+                          ),
+                          child: const Icon(Icons.logout, color: Color(0xFFD94040), size: 24),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text('LOGOUT',
+                            style: TextStyle(color: Colors.white, fontSize: 16,
+                                fontWeight: FontWeight.w800, letterSpacing: 2)),
+                        const SizedBox(height: 8),
+                        Text('Are you sure you want to sign out?',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: _textDim, fontSize: 12)),
+                        const SizedBox(height: 24),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () => Navigator.pop(context, false),
+                                child: Container(
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF1C2120),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: _border),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text('CANCEL',
+                                      style: TextStyle(color: _textMid, fontSize: 12,
+                                          fontWeight: FontWeight.w700, letterSpacing: 1.5)),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () => Navigator.pop(context, true),
+                                child: Container(
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFD94040).withAlpha(25),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: const Color(0xFFD94040)),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: const Text('LOGOUT',
+                                      style: TextStyle(color: Color(0xFFD94040), fontSize: 12,
+                                          fontWeight: FontWeight.w800, letterSpacing: 1.5)),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+              if (confirm == true) {
+                await FirebaseAuth.instance.signOut();
+                if (mounted) Navigator.pushNamedAndRemoveUntil(context, '/', (_) => false);
+              }
+            },
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFD94040).withAlpha(20),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFFD94040).withAlpha(60)),
+              ),
+              child: const Icon(Icons.logout, color: Color(0xFFD94040), size: 16),
+            ),
+          ),
         ],
       ),
     );
@@ -319,13 +414,13 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen>
       Icons.home_outlined,
       Icons.person_outline,
       Icons.work_outline,
-      Icons.settings_outlined,
+      Icons.meeting_room_outlined,
     ];
     final activeItems = [
       Icons.home,
       Icons.person,
       Icons.work,
-      Icons.settings,
+      Icons.meeting_room,
     ];
     return Container(
       decoration: BoxDecoration(
@@ -340,10 +435,10 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen>
           return GestureDetector(
       onTap: () {
             switch (i) {
-              case 0: break; // Home stays here
-              case 1: Navigator.pushReplacementNamed(context, '/admin-patients'); break;
-              case 2: Navigator.pushReplacementNamed(context, '/admin-inventory'); break;
-              case 3: Navigator.pushReplacementNamed(context, '/admin-roomconfig'); break;
+              case 0: break;
+              case 1: Navigator.pushReplacementNamed(context, '/admin-inventory'); break;
+              case 2: Navigator.pushReplacementNamed(context, '/admin-roomconfig'); break;
+              case 3: Navigator.pushReplacementNamed(context, '/admin-patients'); break;
             }
           },
             behavior: HitTestBehavior.opaque,

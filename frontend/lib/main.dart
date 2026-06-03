@@ -21,8 +21,8 @@ void main() async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   // เชื่อม Firebase Emulator
-  await FirebaseAuth.instance.useAuthEmulator('10.0.2.2', 9099);
-  FirebaseFirestore.instance.useFirestoreEmulator('10.0.2.2', 8080);
+  await FirebaseAuth.instance.useAuthEmulator('localhost', 9099);
+  FirebaseFirestore.instance.useFirestoreEmulator('localhost', 8080);
 
   runApp(const WardSyncApp());
 }

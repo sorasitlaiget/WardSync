@@ -16,7 +16,7 @@ class InventoryScreen extends StatefulWidget {
 
 class _InventoryScreenState extends State<InventoryScreen>
     with SingleTickerProviderStateMixin {
-  int _navIndex = 2;
+  int _navIndex = 1;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
@@ -302,7 +302,7 @@ Color _cardBorderColor(StockStatus s) {
     final color = _statusColor(status);
     return Container(
       margin: const EdgeInsets.only(bottom: 9),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+      padding: const EdgeInsets.fromLTRB(14, 13, 8, 13),
       decoration: BoxDecoration(
         color: _card,
         borderRadius: BorderRadius.circular(8),
@@ -318,7 +318,7 @@ Color _cardBorderColor(StockStatus s) {
                     style: const TextStyle(color: Colors.white, fontSize: 14,
                         fontWeight: FontWeight.w700)),
                 const SizedBox(height: 3),
-                Text(m.unit,
+                Text(m.dosage,
                     style: TextStyle(color: _textDim, fontSize: 11)),
               ],
             ),
@@ -335,12 +335,170 @@ Color _cardBorderColor(StockStatus s) {
                       fontWeight: FontWeight.w700, letterSpacing: 1.2)),
             ],
           ),
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert, color: _textMid, size: 20),
+            color: const Color(0xFF1C2120),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+              side: BorderSide(color: _border),
+            ),
+            onSelected: (v) {
+              if (v == 'edit') _showEditMedicationDialog(m);
+              if (v == 'delete') _confirmDelete(m);
+            },
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                value: 'edit',
+                child: Row(children: [
+                  Icon(Icons.edit_outlined, color: _textMid, size: 16),
+                  const SizedBox(width: 10),
+                  Text('Edit', style: TextStyle(color: Colors.white, fontSize: 13)),
+                ]),
+              ),
+              PopupMenuItem(
+                value: 'delete',
+                child: Row(children: [
+                  const Icon(Icons.delete_outline, color: Color(0xFFD94040), size: 16),
+                  const SizedBox(width: 10),
+                  const Text('Delete', style: TextStyle(color: Color(0xFFD94040), fontSize: 13)),
+                ]),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 
+  void _showEditMedicationDialog(Medication m) {
+    final nameCtrl = TextEditingController(text: m.name);
+    final dosageCtrl = TextEditingController(text: m.dosage);
+    final thresholdCtrl = TextEditingController(text: '${m.lowStockThreshold}');
+    final stockCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: _card,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10), side: BorderSide(color: _border)),
+        title: Text('EDIT: ${m.name}',
+            style: const TextStyle(color: Colors.white, fontSize: 13,
+                fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildDialogField(nameCtrl, 'Name'),
+              const SizedBox(height: 10),
+              _buildDialogField(dosageCtrl, 'Dosage'),
+              const SizedBox(height: 10),
+              _buildDialogField(thresholdCtrl, 'Low stock threshold', isNumber: true),
+              const SizedBox(height: 16),
+              Text('ADJUST STOCK (e.g. +10 or -5)',
+                  style: TextStyle(color: _textDim, fontSize: 10, letterSpacing: 1.2)),
+              const SizedBox(height: 6),
+              _buildDialogField(stockCtrl, 'Delta (leave empty to skip)', isNumber: false),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('CANCEL', style: TextStyle(color: _textDim)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: _green, foregroundColor: Colors.black),
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                await _repo.updateMedication(m.id,
+                  name: nameCtrl.text.trim().isNotEmpty ? nameCtrl.text.trim() : null,
+                  dosage: dosageCtrl.text.trim().isNotEmpty ? dosageCtrl.text.trim() : null,
+                  lowStockThreshold: int.tryParse(thresholdCtrl.text.trim()),
+                );
+                final delta = int.tryParse(stockCtrl.text.trim());
+                if (delta != null && delta != 0) {
+                  await _repo.updateStock(m.id, delta);
+                }
+                await _loadMedications();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    backgroundColor: _green,
+                    content: const Text('Updated', style: TextStyle(color: Colors.black)),
+                    behavior: SnackBarBehavior.floating,
+                  ));
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(e.toString().replaceFirst('Exception: ', '')),
+                    backgroundColor: Colors.redAccent,
+                  ));
+                }
+              }
+            },
+            child: const Text('SAVE', style: TextStyle(fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmDelete(Medication m) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: _card,
+        title: const Text('Delete?', style: TextStyle(color: Colors.white)),
+        content: Text('Remove ${m.name} from inventory?',
+            style: TextStyle(color: _textDim)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false),
+              child: Text('Cancel', style: TextStyle(color: _textDim))),
+          TextButton(onPressed: () => Navigator.pop(context, true),
+              child: const Text('Delete', style: TextStyle(color: Color(0xFFD94040)))),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      try {
+        await _repo.deleteMedication(m.id);
+        await _loadMedications();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: Colors.redAccent,
+          ));
+        }
+      }
+    }
+  }
+
   // ── Add medication button ─────────────────────────────────────────────────
+
+  Widget _buildDialogField(TextEditingController ctrl, String hint, {bool isNumber = false}) {
+    return TextField(
+      controller: ctrl,
+      keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+      style: const TextStyle(color: Colors.white, fontSize: 13),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(color: _textDim, fontSize: 12),
+        filled: true,
+        fillColor: _fieldBg,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(6),
+            borderSide: BorderSide(color: _border)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6),
+            borderSide: BorderSide(color: _border)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6),
+            borderSide: BorderSide(color: _green, width: 1.5)),
+      ),
+    );
+  }
 
   Widget _buildAddButton() {
     return SizedBox(
@@ -478,7 +636,7 @@ Color _cardBorderColor(StockStatus s) {
                 try {
                   await _repo.createMedication({
                     'name': name,
-                    'unit': detail,
+                    'dosage': detail,
                     'quantity': quantity,
                     'lowStockThreshold': 10,
                   });
@@ -519,8 +677,8 @@ Color _cardBorderColor(StockStatus s) {
   // ── Bottom nav ────────────────────────────────────────────────────────────
 
   Widget _buildBottomNav() {
-    final outlined = [Icons.home_outlined, Icons.person_outline, Icons.work_outline, Icons.settings_outlined];
-    final filled   = [Icons.home,          Icons.person,         Icons.work,          Icons.settings];
+    final outlined = [Icons.home_outlined, Icons.work_outline, Icons.meeting_room_outlined, Icons.person_outline];
+    final filled   = [Icons.home,          Icons.work,          Icons.meeting_room,          Icons.person];
     return Container(
       decoration: BoxDecoration(
         color: _card,
@@ -535,9 +693,9 @@ Color _cardBorderColor(StockStatus s) {
             onTap: () {
               switch (i) {
                 case 0: Navigator.pushReplacementNamed(context, '/admin-home'); break;
-                case 1: Navigator.pushReplacementNamed(context, '/admin-patients'); break;
-                case 2: break; // Already here
-                case 3: Navigator.pushReplacementNamed(context, '/admin-roomconfig'); break;
+                case 1: break;
+                case 2: Navigator.pushReplacementNamed(context, '/admin-roomconfig'); break;
+                case 3: Navigator.pushReplacementNamed(context, '/admin-patients'); break;
               }
             },
             behavior: HitTestBehavior.opaque,

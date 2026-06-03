@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../features/auth/repositories/auth_repository.dart';
-import '../../shared/models/enums.dart';
 import '../../shared/models/user_profile.dart';
 import 'nurse/homenurse.screens.dart';
 import 'doctor/homedoctor.screens.dart' as doctor;
@@ -27,16 +26,12 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
 
   final _authRepo = AuthRepository();
   late final TextEditingController _nameCtrl;
-  UserRole? _selectedRole;
-  TriageRoom? _selectedRoom;
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
     _nameCtrl = TextEditingController(text: widget.profile.name);
-    _selectedRole = widget.profile.role;
-    _selectedRoom = widget.profile.assignedRoom;
   }
 
   @override
@@ -45,14 +40,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     super.dispose();
   }
 
-  bool get _needsRoom =>
-      _selectedRole == UserRole.doctor || _selectedRole == UserRole.admin;
-
-  bool get _canSubmit =>
-      _nameCtrl.text.trim().isNotEmpty &&
-      _selectedRole != null &&
-      (!_needsRoom || _selectedRoom != null) &&
-      !_isLoading;
+  bool get _canSubmit => _nameCtrl.text.trim().isNotEmpty && !_isLoading;
 
   Future<void> _onSave() async {
     if (!_canSubmit) return;
@@ -60,14 +48,12 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     try {
       await _authRepo.updateProfile({
         'name': _nameCtrl.text.trim(),
-        'role': _selectedRole!.name,
-        if (_selectedRoom != null) 'assignedRoom': _selectedRoom!.name,
         'isProfileComplete': true,
       });
       if (!mounted) return;
-      final nextRoute = _selectedRole == UserRole.doctor
+      final nextRoute = widget.profile.role == UserRole.doctor
           ? doctor.DoctorHomeScreen.routeName
-          : _selectedRole == UserRole.admin
+          : widget.profile.role == UserRole.admin
               ? admin.AdminOverviewScreen.routeName
               : NurseHomeScreen.routeName;
       Navigator.pushReplacementNamed(context, nextRoute);
@@ -121,34 +107,6 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Role
-              _fieldLabel('ROLE'),
-              const SizedBox(height: 10),
-              Row(children: [
-                _roleChip(UserRole.nurse, 'NURSE'),
-                const SizedBox(width: 10),
-                _roleChip(UserRole.doctor, 'DOCTOR'),
-                const SizedBox(width: 10),
-                _roleChip(UserRole.admin, 'ADMIN'),
-              ]),
-              const SizedBox(height: 24),
-
-              // Assigned room (doctor/admin only)
-              if (_needsRoom) ...[
-                _fieldLabel('ASSIGNED ROOM'),
-                const SizedBox(height: 10),
-                Row(children: [
-                  _roomChip(TriageRoom.red, 'RED', const Color(0xFFD94040)),
-                  const SizedBox(width: 8),
-                  _roomChip(TriageRoom.yellow, 'YELLOW', const Color(0xFFE8B840)),
-                  const SizedBox(width: 8),
-                  _roomChip(TriageRoom.green, 'GREEN', const Color(0xFF4CAF50)),
-                  const SizedBox(width: 8),
-                  _roomChip(TriageRoom.black, 'BLACK', const Color(0xFF6B7280)),
-                ]),
-                const SizedBox(height: 24),
-              ],
-
               const SizedBox(height: 16),
               GestureDetector(
                 onTap: _canSubmit ? _onSave : null,
@@ -201,62 +159,4 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
             borderSide: const BorderSide(color: Color(0xFF8CBF3F))),
       );
 
-  Widget _roleChip(UserRole role, String label) {
-    final selected = _selectedRole == role;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() {
-          _selectedRole = role;
-          if (role == UserRole.nurse) _selectedRoom = null;
-        }),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          height: 44,
-          decoration: BoxDecoration(
-            color: selected ? const Color(0xFF1E2B1A) : _fieldBg,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-                color: selected ? _green : _border,
-                width: selected ? 1.5 : 1),
-          ),
-          alignment: Alignment.center,
-          child: Text(label,
-              style: GoogleFonts.rajdhani(
-                color: selected ? _green : _textMid,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1,
-              )),
-        ),
-      ),
-    );
-  }
-
-  Widget _roomChip(TriageRoom room, String label, Color color) {
-    final selected = _selectedRoom == room;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _selectedRoom = room),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          height: 44,
-          decoration: BoxDecoration(
-            color: selected ? color.withValues(alpha: 0.15) : _fieldBg,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-                color: selected ? color : _border,
-                width: selected ? 1.5 : 1),
-          ),
-          alignment: Alignment.center,
-          child: Text(label,
-              style: GoogleFonts.rajdhani(
-                color: selected ? color : _textMid,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1,
-              )),
-        ),
-      ),
-    );
-  }
 }

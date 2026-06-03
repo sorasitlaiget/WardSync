@@ -14,7 +14,7 @@ class RoomConfigScreen extends StatefulWidget {
 
 class _RoomConfigScreenState extends State<RoomConfigScreen>
     with SingleTickerProviderStateMixin {
-  int _navIndex = 3;
+  int _navIndex = 2;
 
   late AnimationController _animController;
   late Animation<double> _fadeAnim;
@@ -254,7 +254,12 @@ class _RoomConfigScreenState extends State<RoomConfigScreen>
                   keyboardType: TextInputType.number,
                   style: const TextStyle(color: Colors.white, fontSize: 16,
                       fontWeight: FontWeight.w700),
-                  onChanged: (v) => _onCapacityChanged(room.room, v),
+                  onSubmitted: (v) => _onCapacityChanged(room.room, v),
+                  onEditingComplete: () {
+                    final v = _controllers[room.room]?.text ?? '';
+                    _onCapacityChanged(room.room, v);
+                    FocusScope.of(context).unfocus();
+                  },
                   decoration: InputDecoration(
                     filled: true,
                     fillColor: _fieldBg,
@@ -301,8 +306,8 @@ class _RoomConfigScreenState extends State<RoomConfigScreen>
   // ── Bottom nav ────────────────────────────────────────────────────────────
 
   Widget _buildBottomNav() {
-    final outlined = [Icons.home_outlined, Icons.person_outline, Icons.work_outline, Icons.settings_outlined];
-    final filled   = [Icons.home,          Icons.person,         Icons.work,          Icons.settings];
+    final outlined = [Icons.home_outlined, Icons.work_outline, Icons.meeting_room_outlined, Icons.person_outline];
+    final filled   = [Icons.home,          Icons.work,          Icons.meeting_room,          Icons.person];
     return Container(
       decoration: BoxDecoration(
         color: _card,
@@ -317,9 +322,9 @@ class _RoomConfigScreenState extends State<RoomConfigScreen>
             onTap: () {
               switch (i) {
                 case 0: Navigator.pushReplacementNamed(context, '/admin-home'); break;
-                case 1: Navigator.pushReplacementNamed(context, '/admin-patients'); break;
-                case 2: Navigator.pushReplacementNamed(context, '/admin-inventory'); break;
-                case 3: break; // Already here
+                case 1: Navigator.pushReplacementNamed(context, '/admin-inventory'); break;
+                case 2: break;
+                case 3: Navigator.pushReplacementNamed(context, '/admin-patients'); break;
               }
             },
             behavior: HitTestBehavior.opaque,

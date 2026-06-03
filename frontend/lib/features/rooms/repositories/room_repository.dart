@@ -48,7 +48,7 @@ class RoomRepository {
 
   Future<void> setRoomCapacity(String room, int capacity) async {
     try {
-      await _dio.put('/api/rooms/capacity/$room', data: {'capacity': capacity});
+      await _dio.put('/api/rooms/capacity/$room', data: {'maxCapacity': capacity});
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
     }
