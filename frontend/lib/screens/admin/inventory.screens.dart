@@ -1,0 +1,730 @@
+import 'package:flutter/material.dart';
+import '../../widgets/wardsync_logo.dart';
+import '../../../../features/medications/repositories/medication_repository.dart';
+
+enum StockStatus { inStock, lowStock, critical }
+
+// ── Screen ────────────────────────────────────────────────────────────────────
+
+class InventoryScreen extends StatefulWidget {
+  const InventoryScreen({super.key});
+
+  static const routeName = '/admin-inventory';
+
+  @override
+  State<InventoryScreen> createState() => _InventoryScreenState();
+}
+
+class _InventoryScreenState extends State<InventoryScreen>
+    with SingleTickerProviderStateMixin {
+  int _navIndex = 1;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  late AnimationController _animController;
+  late Animation<double> _fadeAnim;
+  late Animation<Offset> _slideAnim;
+
+  static const Color _bg      = Color(0xFF0D0F0E);
+  static const Color _card    = Color(0xFF161A19);
+  static const Color _border  = Color(0xFF2A3230);
+  static const Color _green   = Color(0xFF8CBF3F);
+  static const Color _red     = Color(0xFFD94040);
+  static const Color _yellow  = Color(0xFFE8B840);
+  static const Color _textDim = Color(0xFF5A6B65);
+  static const Color _textMid = Color(0xFF8A9B93);
+  static const Color _fieldBg = Color(0xFF1C2120);
+
+  List<Medication> _medications = [];
+  bool _isLoading = true;
+  final _repo = MedicationRepository();
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
+    _fadeAnim  = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
+    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.05), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
+    _animController.forward();
+    _searchController.addListener(() => setState(() => _searchQuery = _searchController.text));
+    _loadMedications();
+  }
+
+  Future<void> _loadMedications() async {
+    try {
+      final meds = await _repo.getMedications();
+      if (!mounted) return;
+      setState(() { _medications = meds; _isLoading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<Medication> get _filtered => _medications
+      .where((m) => m.name.toLowerCase().contains(_searchQuery.toLowerCase()))
+      .toList();
+
+  StockStatus _stockStatusOf(Medication m) {
+    if (m.isCritical) return StockStatus.critical;
+    if (m.isLowStock) return StockStatus.lowStock;
+    return StockStatus.inStock;
+  }
+
+  List<Medication> get _lowItems =>
+      _medications.where((m) => m.isLowStock || m.isCritical).toList();
+
+  int get _totalCount => _medications.length;
+  int get _lowCount   => _lowItems.length;
+
+  Color _statusColor(StockStatus s) {
+    switch (s) {
+      case StockStatus.inStock:  return const Color(0xFF8CBF3F);
+      case StockStatus.lowStock: return const Color(0xFFE8B840);
+      case StockStatus.critical: return const Color(0xFFD94040);
+    }
+  }
+
+  String _statusLabel(StockStatus s) {
+    switch (s) {
+      case StockStatus.inStock:  return 'IN STOCK';
+      case StockStatus.lowStock: return 'LOW STOCK';
+      case StockStatus.critical: return 'CRITICAL';
+    }
+  }
+
+Color _cardBorderColor(StockStatus s) {
+    switch (s) {
+      case StockStatus.inStock:  return _border;
+      case StockStatus.lowStock: return _yellow.withOpacity(0.35);
+      case StockStatus.critical: return _red.withOpacity(0.45);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _bg,
+      body: SafeArea(
+        child: FadeTransition(
+          opacity: _fadeAnim,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildPageTitle(),
+              _buildTopBar(),
+              const SizedBox(height: 16),
+              Expanded(
+                child: SlideTransition(
+                  position: _slideAnim,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_lowItems.isNotEmpty) ...[
+                          _buildLowStockBanner(),
+                          const SizedBox(height: 12),
+                        ],
+                        _buildSearchBar(),
+                        const SizedBox(height: 14),
+                        if (_isLoading)
+                          const Center(child: Padding(
+                            padding: EdgeInsets.all(32),
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ))
+                        else if (_filtered.isEmpty)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 30),
+                            decoration: BoxDecoration(
+                              color: _card,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: _border, width: 1),
+                            ),
+                            child: Column(
+                              children: [
+                                Icon(Icons.inventory_2_outlined, color: _textDim, size: 40),
+                                const SizedBox(height: 12),
+                                Text('No medication yet',
+                                    style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700)),
+                                const SizedBox(height: 6),
+                                Text('Tap ADD MEDICATION to create inventory items.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(color: _textDim, fontSize: 12)),
+                              ],
+                            ),
+                          )
+                        else ..._filtered.map(_buildMedCard),
+                        const SizedBox(height: 8),
+                        _buildAddButton(),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              _buildBottomNav(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Page title ────────────────────────────────────────────────────────────
+
+  Widget _buildPageTitle() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+      child: Text('Inventory',
+          style: TextStyle(color: _textMid, fontSize: 13,
+              fontWeight: FontWeight.w500, letterSpacing: 0.5)),
+    );
+  }
+
+  // ── Header card ───────────────────────────────────────────────────────────
+
+  Widget _buildTopBar() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      decoration: BoxDecoration(
+        color: _card,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _border, width: 1),
+      ),
+      child: Row(
+        children: [
+          const WardSyncLogo(size: 32),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('INVENTORY',
+                  style: const TextStyle(color: Colors.white, fontSize: 18,
+                      fontWeight: FontWeight.w800, letterSpacing: 2.0)),
+              Text('$_totalCount MEDICATION : $_lowCount LOW',
+                  style: TextStyle(color: _textDim, fontSize: 10, letterSpacing: 0.4)),
+            ],
+          ),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: _green.withOpacity(0.15),
+              border: Border.all(color: _green, width: 1.5),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text('ADMIN',
+                style: TextStyle(color: _green, fontSize: 10,
+                    fontWeight: FontWeight.w800, letterSpacing: 1.5)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Low stock banner ──────────────────────────────────────────────────────
+
+  Widget _buildLowStockBanner() {
+    final names = _lowItems.map((m) => m.name).join(', ');
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: _yellow.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _yellow.withOpacity(0.4), width: 1),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: _yellow.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(Icons.warning_amber_rounded, color: _yellow, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${_lowItems.length} ITEMS LOW STOCK',
+                    style: TextStyle(color: _yellow, fontSize: 12,
+                        fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+                const SizedBox(height: 2),
+                Text(names,
+                    style: TextStyle(color: _textDim, fontSize: 10),
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Search bar ────────────────────────────────────────────────────────────
+
+  Widget _buildSearchBar() {
+    return TextField(
+      controller: _searchController,
+      style: const TextStyle(color: Colors.white, fontSize: 13),
+      decoration: InputDecoration(
+        hintText: 'Search medication...',
+        hintStyle: TextStyle(color: _textDim, fontSize: 12),
+        prefixIcon: Icon(Icons.search, color: _textDim, size: 18),
+        filled: true,
+        fillColor: _fieldBg,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: _border, width: 1)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: _border, width: 1)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: _green.withOpacity(0.5), width: 1.5)),
+      ),
+    );
+  }
+
+  // ── Medication card ───────────────────────────────────────────────────────
+
+  Widget _buildMedCard(Medication m) {
+    final status = _stockStatusOf(m);
+    final color = _statusColor(status);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 9),
+      padding: const EdgeInsets.fromLTRB(14, 13, 8, 13),
+      decoration: BoxDecoration(
+        color: _card,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _cardBorderColor(status), width: 1),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(m.name,
+                    style: const TextStyle(color: Colors.white, fontSize: 14,
+                        fontWeight: FontWeight.w700)),
+                const SizedBox(height: 3),
+                Text(m.dosage,
+                    style: TextStyle(color: _textDim, fontSize: 11)),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('${m.quantity}',
+                  style: TextStyle(color: color, fontSize: 22,
+                      fontWeight: FontWeight.w800)),
+              const SizedBox(height: 2),
+              Text(_statusLabel(status),
+                  style: TextStyle(color: color, fontSize: 9,
+                      fontWeight: FontWeight.w700, letterSpacing: 1.2)),
+            ],
+          ),
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert, color: _textMid, size: 20),
+            color: const Color(0xFF1C2120),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+              side: BorderSide(color: _border),
+            ),
+            onSelected: (v) {
+              if (v == 'edit') _showEditMedicationDialog(m);
+              if (v == 'delete') _confirmDelete(m);
+            },
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                value: 'edit',
+                child: Row(children: [
+                  Icon(Icons.edit_outlined, color: _textMid, size: 16),
+                  const SizedBox(width: 10),
+                  Text('Edit', style: TextStyle(color: Colors.white, fontSize: 13)),
+                ]),
+              ),
+              PopupMenuItem(
+                value: 'delete',
+                child: Row(children: [
+                  const Icon(Icons.delete_outline, color: Color(0xFFD94040), size: 16),
+                  const SizedBox(width: 10),
+                  const Text('Delete', style: TextStyle(color: Color(0xFFD94040), fontSize: 13)),
+                ]),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditMedicationDialog(Medication m) {
+    final nameCtrl      = TextEditingController(text: m.name);
+    final dosageCtrl    = TextEditingController(text: m.dosage);
+    final quantityCtrl  = TextEditingController(text: '${m.quantity}');
+    final thresholdCtrl = TextEditingController(text: '${m.lowStockThreshold}');
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: _card,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10), side: BorderSide(color: _border)),
+        title: Text('EDIT: ${m.name}',
+            style: const TextStyle(color: Colors.white, fontSize: 13,
+                fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('NAME', style: TextStyle(color: _textDim, fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              _buildDialogField(nameCtrl, 'Medication name'),
+              const SizedBox(height: 12),
+              Text('DOSAGE', style: TextStyle(color: _textDim, fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              _buildDialogField(dosageCtrl, 'e.g. 500mg, 2ml'),
+              const SizedBox(height: 12),
+              Text('QUANTITY', style: TextStyle(color: _green, fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              _buildDialogField(quantityCtrl, 'Current stock count', isNumber: true),
+              const SizedBox(height: 12),
+              Text('LOW STOCK THRESHOLD', style: TextStyle(color: _textDim, fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              _buildDialogField(thresholdCtrl, 'Alert when stock falls below this', isNumber: true),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('CANCEL', style: TextStyle(color: _textDim)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: _green, foregroundColor: Colors.black),
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                await _repo.updateMedication(m.id,
+                  name: nameCtrl.text.trim().isNotEmpty ? nameCtrl.text.trim() : null,
+                  dosage: dosageCtrl.text.trim().isNotEmpty ? dosageCtrl.text.trim() : null,
+                  lowStockThreshold: int.tryParse(thresholdCtrl.text.trim()),
+                );
+                final newQty = int.tryParse(quantityCtrl.text.trim());
+                if (newQty != null && newQty != m.quantity) {
+                  await _repo.updateStock(m.id, newQty - m.quantity);
+                }
+                await _loadMedications();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    backgroundColor: _green,
+                    content: const Text('Updated', style: TextStyle(color: Colors.black)),
+                    behavior: SnackBarBehavior.floating,
+                  ));
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(e.toString().replaceFirst('Exception: ', '')),
+                    backgroundColor: Colors.redAccent,
+                  ));
+                }
+              }
+            },
+            child: const Text('SAVE', style: TextStyle(fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmDelete(Medication m) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: _card,
+        title: const Text('Delete?', style: TextStyle(color: Colors.white)),
+        content: Text('Remove ${m.name} from inventory?',
+            style: TextStyle(color: _textDim)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false),
+              child: Text('Cancel', style: TextStyle(color: _textDim))),
+          TextButton(onPressed: () => Navigator.pop(context, true),
+              child: const Text('Delete', style: TextStyle(color: Color(0xFFD94040)))),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      try {
+        await _repo.deleteMedication(m.id);
+        await _loadMedications();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: Colors.redAccent,
+          ));
+        }
+      }
+    }
+  }
+
+  // ── Add medication button ─────────────────────────────────────────────────
+
+  Widget _buildDialogField(TextEditingController ctrl, String hint, {bool isNumber = false}) {
+    return TextField(
+      controller: ctrl,
+      keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+      style: const TextStyle(color: Colors.white, fontSize: 13),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(color: _textDim, fontSize: 12),
+        filled: true,
+        fillColor: _fieldBg,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(6),
+            borderSide: BorderSide(color: _border)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6),
+            borderSide: BorderSide(color: _border)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6),
+            borderSide: BorderSide(color: _green, width: 1.5)),
+      ),
+    );
+  }
+
+  Widget _buildAddButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: ElevatedButton.icon(
+        onPressed: _showAddMedicationDialog,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _green,
+          foregroundColor: Colors.black,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        icon: const Icon(Icons.add, size: 20),
+        label: const Text('ADD MEDICATION',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 2.2)),
+      ),
+    );
+  }
+
+  void _showAddMedicationDialog() {
+    final nameController = TextEditingController();
+    final detailController = TextEditingController();
+    final quantityController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: _card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: Text(
+          'ADD MEDICATION',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.8,
+          ),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'Medication Name',
+                  hintStyle: TextStyle(color: _textDim, fontSize: 13),
+                  filled: true,
+                  fillColor: _fieldBg,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    borderSide: BorderSide(color: _border, width: 1),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    borderSide: BorderSide(color: _border, width: 1),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    borderSide: BorderSide(color: _green, width: 1.5),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: detailController,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'Detail / Dosage',
+                  hintStyle: TextStyle(color: _textDim, fontSize: 13),
+                  filled: true,
+                  fillColor: _fieldBg,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    borderSide: BorderSide(color: _border, width: 1),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    borderSide: BorderSide(color: _border, width: 1),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    borderSide: BorderSide(color: _green, width: 1.5),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: quantityController,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'Quantity',
+                  hintStyle: TextStyle(color: _textDim, fontSize: 13),
+                  filled: true,
+                  fillColor: _fieldBg,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    borderSide: BorderSide(color: _border, width: 1),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    borderSide: BorderSide(color: _border, width: 1),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    borderSide: BorderSide(color: _green, width: 1.5),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'CANCEL',
+              style: TextStyle(color: _textDim, fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final name = nameController.text.trim();
+              final detail = detailController.text.trim();
+              final quantity = int.tryParse(quantityController.text.trim()) ?? 0;
+
+              if (name.isNotEmpty && detail.isNotEmpty && quantityController.text.isNotEmpty) {
+                Navigator.pop(context);
+                try {
+                  await _repo.createMedication({
+                    'name': name,
+                    'dosage': detail,
+                    'quantity': quantity,
+                    'lowStockThreshold': 10,
+                  });
+                  await _loadMedications();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      backgroundColor: _green,
+                      content: Text('Added: $name',
+                          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w600)),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    ));
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      backgroundColor: Colors.redAccent,
+                      content: Text(e.toString().replaceFirst('Exception: ', '')),
+                    ));
+                  }
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _green,
+              foregroundColor: Colors.black,
+            ),
+            child: const Text(
+              'ADD',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Bottom nav ────────────────────────────────────────────────────────────
+
+  Widget _buildBottomNav() {
+    final outlined = [Icons.home_outlined, Icons.work_outline, Icons.meeting_room_outlined, Icons.person_outline];
+    final filled   = [Icons.home,          Icons.work,          Icons.meeting_room,          Icons.person];
+    const labels   = ['Home', 'Inventory', 'Room', 'Users'];
+    return Container(
+      decoration: BoxDecoration(
+        color: _card,
+        border: Border(top: BorderSide(color: _border, width: 0.5)),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: List.generate(4, (i) {
+          final active = _navIndex == i;
+          return GestureDetector(
+            onTap: () {
+              switch (i) {
+                case 0: Navigator.pushReplacementNamed(context, '/admin-home'); break;
+                case 1: break;
+                case 2: Navigator.pushReplacementNamed(context, '/admin-roomconfig'); break;
+                case 3: Navigator.pushReplacementNamed(context, '/admin-patients'); break;
+              }
+            },
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(active ? filled[i] : outlined[i],
+                      color: active ? _green : _textDim, size: 24),
+                  const SizedBox(height: 2),
+                  Text(
+                    labels[i],
+                    style: TextStyle(color: active ? _green : _textDim, fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+}
+

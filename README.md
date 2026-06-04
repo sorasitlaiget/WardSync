@@ -1,89 +1,152 @@
-# 🏥 WardSync
+# WardSync
 
-**Real-time Field Hospital Management System**
+ระบบบริหารจัดการโรงพยาบาลสนามแบบ Real-time
 
-> *"Synchronizing care when every second counts"*
-
-A Flutter mobile application for managing field hospital operations in war zones, with real-time multi-user synchronization across nurses, doctors, and administrators.
+> **Tech stack:** Flutter (Frontend) · Node.js + TypeScript + Express (Backend) · Firebase (Auth, Firestore, Storage, Messaging)
 
 ---
 
-## 📁 Project Structure
+## ข้อกำหนดเบื้องต้น
 
-```
-wardsync/
-├── backend/        # Node.js + TypeScript + Express + Firebase Admin SDK
-└── frontend/       # Flutter app (Android + iOS)
-```
+ติดตั้งสิ่งเหล่านี้ก่อน:
+
+| เครื่องมือ | Version | ดาวน์โหลด |
+|---|---|---|
+| Flutter SDK | 3.x+ | [flutter.dev](https://flutter.dev/docs/get-started/install) |
+| Dart SDK | มากับ Flutter | — |
+| Node.js | 18+ | [nodejs.org](https://nodejs.org/) |
+| Firebase CLI | latest | `npm install -g firebase-tools` |
 
 ---
 
-## 🚀 Quick Start
+## ขั้นตอน Setup (ทำครั้งเดียวหลัง clone)
 
-### Backend
+### 1. Clone repository
+
 ```bash
-cd backend
-cp .env.example .env
-# Add firebase-service-account.json
-npm install
-npm run dev
+git clone https://github.com/sorasitlaiget/WardSync.git
+cd WardSync
 ```
-👉 See [backend/README.md](./backend/README.md) for full setup guide.
 
-### Frontend (Flutter)
+### 2. ขอไฟล์ Firebase จากสมาชิกในทีม
+
+ไฟล์เหล่านี้ **ไม่ได้อยู่ใน repo** เพราะมี API keys — ขอจากเพื่อนในทีมผ่าน Line/Discord แล้ววางตามตำแหน่งนี้:
+
+```
+WardSync/
+├── firebase.json                              ← วางตรงนี้
+└── frontend/
+    ├── android/app/google-services.json       ← วางตรงนี้
+    └── lib/firebase_options.dart              ← วางตรงนี้
+```
+
+> ถ้าไม่มีไฟล์พวกนี้ แอปจะ build ไม่ผ่าน
+
+### 3. Setup Frontend (Flutter)
+
 ```bash
 cd frontend
 flutter pub get
-flutter run
+```
+
+ทดสอบว่า Flutter พร้อมใช้งาน:
+
+```bash
+flutter doctor
+```
+
+### 4. Setup Backend
+
+ดูขั้นตอนละเอียดได้ที่ [backend/README.md](backend/README.md)
+
+สรุปย่อ:
+
+```bash
+cd backend
+cp .env.example .env
+# แก้ไข .env ตามที่ backend/README.md บอก
+npm install
 ```
 
 ---
 
-## 🎯 Tech Stack
+## วิธีรันโปรเจกต์
 
-| Layer | Technology |
-|-------|-----------|
-| Backend | Node.js, TypeScript, Express |
-| Database | Firestore (real-time NoSQL) |
-| Auth | Firebase Auth |
-| Storage | Firebase Storage (patient photos) |
-| Notifications | Firebase Cloud Messaging (FCM) |
-| Frontend | Flutter |
-| Real-time Sync | Firestore SDK stream (frontend) |
+### รันทุกอย่างพร้อมกัน (แนะนำ)
 
----
+จาก root folder:
 
-## 👥 Team Structure
+```bash
+npm install        # ติดตั้ง concurrently (ครั้งแรกครั้งเดียว)
+npm run dev        # รัน Firebase Emulator + Backend พร้อมกัน
+```
 
-| Role | Owner |
-|------|-------|
-| Backend (this folder) | You |
-| Frontend Flutter (4 devs) | Team |
+### รัน Frontend
 
----
+```bash
+cd frontend
+flutter run        # เลือก device/emulator ที่ต้องการ
+```
 
-## 📅 Timeline
+### รันแยกส่วน
 
-| Date | Milestone |
-|------|-----------|
-| 21 May 2026 | ✅ Submission 1: Requirements Spec |
-| 30 May 2026 | Tier 1 (MVP) complete |
-| 3 June 2026 | Tier 2 features complete |
-| 5 June 2026 | Submission 2: Final delivery + demo |
+```bash
+# Firebase Emulator
+npm run emulator
 
----
+# Backend เฉพาะ
+npm run backend
 
-## 🎨 Theme
-
-**Theme 2: Fighting Impact of Wars on the World & Its Inhabitants**
-
-WardSync serves humanitarian medical teams (MSF, ICRC, WHO EMT) treating war casualties.
+# Frontend
+cd frontend && flutter run
+```
 
 ---
 
-## 📖 Documentation
+## โครงสร้างโปรเจกต์
 
-- [Concept and List of Functions](./docs/WardSync_Concept_and_List_of_Functions.pdf)
-- [User Personas](./docs/WardSync_User_Persona.pdf)
-- [User Journey Map](./docs/WardSync_User_Journey_Map.pdf)
-- [Backend README](./backend/README.md)
+```
+WardSync/
+├── frontend/                  # Flutter app
+│   ├── lib/
+│   │   ├── core/              # network, errors, constants
+│   │   ├── features/          # auth, patients, notifications, ...
+│   │   ├── screens/           # UI screens แยกตาม role
+│   │   └── shared/            # models, widgets ที่ใช้ร่วมกัน
+│   └── pubspec.yaml
+│
+├── backend/                   # Node.js + Express API
+│   ├── src/
+│   └── README.md              # Backend setup guide (ละเอียด)
+│
+├── package.json               # root scripts (dev, emulator, backend)
+└── README.md
+```
+
+---
+
+## ไฟล์ที่ต้องขอจากทีม (ไม่อยู่ใน repo)
+
+| ไฟล์ | ใช้สำหรับ |
+|---|---|
+| `frontend/android/app/google-services.json` | Firebase Android config |
+| `frontend/lib/firebase_options.dart` | Firebase Flutter config |
+| `firebase.json` | Firebase project config |
+| `backend/firebase-service-account.json` | Firebase Admin SDK (backend) |
+| `backend/.env` | Environment variables (backend) |
+
+---
+
+## Troubleshooting
+
+**`firebase_options.dart` not found**
+→ ขอไฟล์จากทีมแล้ววางใน `frontend/lib/`
+
+**`google-services.json` not found**
+→ ขอไฟล์จากทีมแล้ววางใน `frontend/android/app/`
+
+**Flutter pub get ล้มเหลว**
+→ รัน `flutter doctor` เพื่อเช็คว่า Flutter SDK ติดตั้งครบ
+
+**Backend ไม่ start**
+→ ดู [backend/README.md](backend/README.md) หัวข้อ Troubleshooting

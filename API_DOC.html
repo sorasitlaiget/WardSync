@@ -1,0 +1,352 @@
+<h1 id="wardsync-backend-api-integration-guide">WardSync Backend API —
+Integration Guide</h1>
+<p>Base URL (dev): <code>http://localhost:3000</code><br />
+Auth: Bearer Token (Firebase ID Token) ใส่ใน header ทุก request</p>
+<pre><code>Authorization: Bearer &lt;idToken&gt;</code></pre>
+<hr />
+<h2 id="role-permissions">Role Permissions</h2>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>nurse</th>
+<th>doctor</th>
+<th>admin</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>สร้าง patient</td>
+<td>✅</td>
+<td>❌</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>ดู patient list</td>
+<td>✅</td>
+<td>✅ (เฉพาะห้องตัวเอง)</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>ดู patient detail</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>เปลี่ยน patient status</td>
+<td>❌</td>
+<td>✅</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>บันทึก vital signs</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>บันทึก treatment</td>
+<td>❌</td>
+<td>✅</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>จัดการ medication inventory</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>ดู medication list</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>ดู room capacity</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>ตั้งค่า room capacity</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>ดู stats/charts</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>จัดการ users</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>หมายเหตุ</strong>: Doctor เห็น patient เฉพาะห้องที่ assign ไว้
+ถ้าอยาก override ส่ง <code>?room=all</code></p>
+</blockquote>
+<hr />
+<h2 id="f1-authentication-user-management">F1 — Authentication &amp;
+User Management</h2>
+<h3 id="login">Login</h3>
+<pre><code>POST http://localhost:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=fake-key
+Body: { &quot;email&quot;: &quot;...&quot;, &quot;password&quot;: &quot;...&quot;, &quot;returnSecureToken&quot;: true }
+Response: { &quot;idToken&quot;: &quot;...&quot; }  ← ใช้ token นี้ใส่ใน Authorization header</code></pre>
+<h3 id="profile">Profile</h3>
+<pre><code>GET    /api/users/profile          — ดู profile ตัวเอง
+PATCH  /api/users/profile          — กรอก profile ครั้งแรก (completeProfile)
+PATCH  /api/users/fcm-token        — อัพเดท FCM token { &quot;fcmToken&quot;: &quot;...&quot; }</code></pre>
+<h3 id="admin-จดการ-users">Admin — จัดการ Users</h3>
+<pre><code>GET    /api/users                  — list users ทั้งหมด
+POST   /api/users                  — สร้าง user ใหม่
+PATCH  /api/users/:uid/role        — เปลี่ยน role/assignedRoom</code></pre>
+<p><strong>CompleteProfile body:</strong></p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span> <span class="dt">&quot;displayName&quot;</span><span class="fu">:</span> <span class="st">&quot;นายแพทย์ สมชาย&quot;</span><span class="fu">,</span> <span class="dt">&quot;role&quot;</span><span class="fu">:</span> <span class="st">&quot;doctor&quot;</span><span class="fu">,</span> <span class="dt">&quot;assignedRoom&quot;</span><span class="fu">:</span> <span class="st">&quot;red&quot;</span> <span class="fu">}</span></span></code></pre></div>
+<blockquote>
+<p>nurse ไม่มี assignedRoom — doctor และ admin ต้องมี assignedRoom</p>
+</blockquote>
+<hr />
+<h2 id="f2-f3-patient-registration-list">F2 &amp; F3 — Patient
+Registration &amp; List</h2>
+<h3 id="สราง-patient-nurse-only-multipartform-data">สร้าง Patient (nurse
+only) — multipart/form-data</h3>
+<pre><code>POST /api/patients
+Fields: wristbandNumber, triageColor (red|yellow|green|black), sex (male|female),
+        ageRange (infant|child|adult|elder)
+File:   photo (optional, field name: &quot;photo&quot;)</code></pre>
+<h3 id="list-filter-patients">List &amp; Filter Patients</h3>
+<pre><code>GET /api/patients
+Query params:
+  ?room=red|yellow|green|black|all
+  ?status=waiting|inTreatment|discharged|deceased
+  ?triageColor=red|yellow|green|black
+  ?wristband=003          ← prefix search (F10)
+  ?today=true             ← เฉพาะวันนี้ (F10)
+  ?fromTime=2026-06-01T08:00:00Z&amp;toTime=2026-06-01T17:00:00Z  ← custom range (F10)</code></pre>
+<h3 id="patient-detail-status">Patient Detail &amp; Status</h3>
+<pre><code>GET   /api/patients/:id
+PATCH /api/patients/:id/status     — { &quot;status&quot;: &quot;inTreatment&quot; } (doctor only)</code></pre>
+<p><strong>Patient Status flow:</strong> <code>waiting</code> →
+<code>inTreatment</code> → <code>discharged</code> หรือ
+<code>deceased</code></p>
+<hr />
+<h2 id="f4-push-notifications-fcm">F4 — Push Notifications (FCM)</h2>
+<p>Backend ส่ง FCM อัตโนมัติ ไม่ต้องเรียก endpoint:</p>
+<table>
+<thead>
+<tr>
+<th>Event</th>
+<th>ส่งถึงใคร</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>สร้าง patient ใหม่</td>
+<td>Doctor ทุกคนในห้องเดียวกัน</td>
+</tr>
+<tr>
+<td>vital signs เกิน threshold</td>
+<td>Doctor ทุกคนในห้องเดียวกัน</td>
+</tr>
+<tr>
+<td>stock ต่ำกว่า threshold / หมด</td>
+<td>Admin ทุกคน</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Flutter ต้องทำ:</strong> 1. ขอ FCM permission จาก user 2. Get
+FCM token แล้ว PATCH <code>/api/users/fcm-token</code> 3. Handle incoming
+notification payload: - <code>type: "new_patient"</code> → patientId ใน
+data - <code>type: "vital_alert"</code> → patientId ใน data -
+<code>type: "low_stock"</code> / <code>"out_of_stock"</code> →
+medicationId ใน data</p>
+<hr />
+<h2 id="f5-patient-detail-vitals-treatments">F5 — Patient Detail: Vitals
+&amp; Treatments</h2>
+<h3 id="vital-signs">Vital Signs</h3>
+<pre><code>POST   /api/patients/:id/vitals              — บันทึก vitals ใหม่
+GET    /api/patients/:id/vitals              — list vitals ทั้งหมด
+PATCH  /api/patients/:id/vitals/:vitalId     — แก้ vitals
+DELETE /api/patients/:id/vitals/:vitalId     — ลบ</code></pre>
+<p><strong>POST/PATCH body:</strong></p>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;bloodPressure&quot;</span><span class="fu">:</span> <span class="st">&quot;120/80&quot;</span><span class="fu">,</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;heartRate&quot;</span><span class="fu">:</span> <span class="dv">75</span><span class="fu">,</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;temperature&quot;</span><span class="fu">:</span> <span class="fl">37.0</span><span class="fu">,</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;oxygenSaturation&quot;</span><span class="fu">:</span> <span class="dv">98</span><span class="fu">,</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;respiratoryRate&quot;</span><span class="fu">:</span> <span class="dv">16</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>Response</strong> มี <code>alerts</code> field บอก field ไหน
+critical:</p>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span> <span class="dt">&quot;heartRate&quot;</span><span class="fu">:</span> <span class="dv">30</span><span class="fu">,</span> <span class="er">...,</span> <span class="dt">&quot;alerts&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;heartRate&quot;</span><span class="fu">:</span> <span class="st">&quot;HR critical: 30 bpm&quot;</span> <span class="fu">}</span> <span class="fu">}</span></span></code></pre></div>
+<blockquote>
+<p>ใช้ <code>alerts</code> เพื่อแสดงสีแดงใน UI (T2.3)</p>
+</blockquote>
+<h3 id="treatments">Treatments</h3>
+<pre><code>POST   /api/patients/:id/treatments              — บันทึก treatment (doctor only)
+GET    /api/patients/:id/treatments
+PATCH  /api/patients/:id/treatments/:treatmentId
+DELETE /api/patients/:id/treatments/:treatmentId</code></pre>
+<p><strong>POST body:</strong></p>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;diagnosis&quot;</span><span class="fu">:</span> <span class="st">&quot;Suspected sepsis&quot;</span><span class="fu">,</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;treatment&quot;</span><span class="fu">:</span> <span class="st">&quot;Fluid resuscitation&quot;</span><span class="fu">,</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;notes&quot;</span><span class="fu">:</span> <span class="st">&quot;Monitor BP every 15 min&quot;</span><span class="fu">,</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;medications&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span> <span class="dt">&quot;medicationId&quot;</span><span class="fu">:</span> <span class="st">&quot;&lt;id&gt;&quot;</span><span class="fu">,</span> <span class="dt">&quot;dosage&quot;</span><span class="fu">:</span> <span class="st">&quot;500ml IV bolus&quot;</span> <span class="fu">}</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<hr />
+<h2 id="f6-admin-dashboard-stats">F6 — Admin Dashboard Stats</h2>
+<pre><code>GET /api/patients/stats
+Response:
+{
+  &quot;total&quot;: 10,
+  &quot;byColor&quot;: { &quot;red&quot;: 9, &quot;yellow&quot;: 0, &quot;green&quot;: 0, &quot;black&quot;: 1 },
+  &quot;byRoom&quot;:  { &quot;red&quot;: 9, &quot;yellow&quot;: 0, &quot;green&quot;: 0, &quot;black&quot;: 1 },
+  &quot;byStatus&quot;: { &quot;waiting&quot;: 5, &quot;inTreatment&quot;: 3, &quot;discharged&quot;: 2, &quot;deceased&quot;: 0 }
+}</code></pre>
+<hr />
+<h2 id="f7-vital-signs-alert">F7 — Vital Signs Alert</h2>
+<p>อัตโนมัติเมื่อ POST/PATCH vitals — ค่า threshold:</p>
+<table>
+<thead>
+<tr>
+<th>Vital</th>
+<th>Critical</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Blood Pressure</td>
+<td>systolic &lt; 90 หรือ &gt; 180 / diastolic &lt; 60 หรือ &gt; 120</td>
+</tr>
+<tr>
+<td>Heart Rate</td>
+<td>&lt; 40 หรือ &gt; 150 bpm</td>
+</tr>
+<tr>
+<td>Temperature</td>
+<td>&lt; 35 หรือ &gt; 39.5 °C</td>
+</tr>
+<tr>
+<td>SpO2</td>
+<td>&lt; 90%</td>
+</tr>
+<tr>
+<td>Respiratory Rate</td>
+<td>&lt; 8 หรือ &gt; 30 /min</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="f8-medication-inventory">F8 — Medication Inventory</h2>
+<h3 id="admin-จดการ-inventory">Admin — จัดการ Inventory</h3>
+<pre><code>POST   /api/medications              — { &quot;name&quot;: &quot;Normal Saline&quot;, &quot;dosage&quot;: &quot;500ml IV bolus&quot;, &quot;quantity&quot;: 50, &quot;lowStockThreshold&quot;: 10 }
+GET    /api/medications?search=sal   — list + search by name
+GET    /api/medications/:id
+PATCH  /api/medications/:id          — แก้ name/dosage/threshold
+DELETE /api/medications/:id
+PATCH  /api/medications/:id/stock    — { &quot;delta&quot;: 10 } หรือ { &quot;delta&quot;: -5 }</code></pre>
+<p><strong>Medication status:</strong> - <code>inStock</code> — ปกติ -
+<code>lowStock</code> — ≤ lowStockThreshold (FCM แจ้ง admin) -
+<code>outOfStock</code> — quantity = 0 (FCM แจ้ง admin +
+ไม่สามารถสั่งได้)</p>
+<p><strong>Flutter ต้องทำ:</strong> GET <code>/api/medications</code>
+ก่อนแสดง medication picker ใน treatment form</p>
+<hr />
+<h2 id="f9-room-capacity">F9 — Room Capacity</h2>
+<pre><code>GET /api/rooms/capacity              — ทุกห้อง
+GET /api/rooms/capacity/:room        — ห้องเดียว (red|yellow|green|black)
+PUT /api/rooms/capacity/:room        — { &quot;maxCapacity&quot;: 10 } (admin only)</code></pre>
+<p><strong>Response:</strong></p>
+<div class="sourceCode" id="cb17"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span> <span class="dt">&quot;room&quot;</span><span class="fu">:</span> <span class="st">&quot;red&quot;</span><span class="fu">,</span> <span class="dt">&quot;current&quot;</span><span class="fu">:</span> <span class="dv">8</span><span class="fu">,</span> <span class="dt">&quot;maxCapacity&quot;</span><span class="fu">:</span> <span class="dv">10</span><span class="fu">,</span> <span class="dt">&quot;percentage&quot;</span><span class="fu">:</span> <span class="dv">80</span><span class="fu">,</span> <span class="dt">&quot;warning&quot;</span><span class="fu">:</span> <span class="st">&quot;nearFull&quot;</span> <span class="fu">}</span></span></code></pre></div>
+<p><strong>warning levels:</strong> - <code>normal</code> — &lt; 80% -
+<code>nearFull</code> — ≥ 80% (แสดงสีเหลือง) - <code>full</code> — ≥ 95%
+(แสดงสีแดง)</p>
+<hr />
+<h2 id="f10-search-filter">F10 — Search &amp; Filter</h2>
+<p>ดูส่วน <strong>List &amp; Filter Patients</strong> ด้านบน — รองรับ
+combine หลาย params พร้อมกัน</p>
+<hr />
+<h2 id="f11-statistics-charts">F11 — Statistics Charts</h2>
+<pre><code>GET /api/stats/charts?days=7
+GET /api/stats/charts?fromDate=2026-06-01&amp;toDate=2026-06-01</code></pre>
+<p><strong>Response:</strong></p>
+<div class="sourceCode" id="cb19"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;patientsPerDay&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="fu">{</span> <span class="dt">&quot;date&quot;</span><span class="fu">:</span> <span class="st">&quot;2026-06-01&quot;</span><span class="fu">,</span> <span class="dt">&quot;count&quot;</span><span class="fu">:</span> <span class="dv">10</span> <span class="fu">}</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;byColor&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;red&quot;</span><span class="fu">:</span> <span class="dv">9</span><span class="fu">,</span> <span class="dt">&quot;yellow&quot;</span><span class="fu">:</span> <span class="dv">0</span><span class="fu">,</span> <span class="dt">&quot;green&quot;</span><span class="fu">:</span> <span class="dv">0</span><span class="fu">,</span> <span class="dt">&quot;black&quot;</span><span class="fu">:</span> <span class="dv">1</span> <span class="fu">},</span></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;mortalityRate&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="fu">{</span> <span class="dt">&quot;date&quot;</span><span class="fu">:</span> <span class="st">&quot;2026-06-01&quot;</span><span class="fu">,</span> <span class="dt">&quot;deceased&quot;</span><span class="fu">:</span> <span class="dv">0</span><span class="fu">,</span> <span class="dt">&quot;total&quot;</span><span class="fu">:</span> <span class="dv">10</span><span class="fu">,</span> <span class="dt">&quot;rate&quot;</span><span class="fu">:</span> <span class="dv">0</span> <span class="fu">}</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;avgResponseTimeMinutes&quot;</span><span class="fu">:</span> <span class="fl">54.5</span></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<hr />
+<h2 id="error-format">Error Format</h2>
+<div class="sourceCode" id="cb20"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span> <span class="dt">&quot;error&quot;</span><span class="fu">:</span> <span class="st">&quot;Not Found&quot;</span><span class="fu">,</span> <span class="dt">&quot;message&quot;</span><span class="fu">:</span> <span class="st">&quot;Patient not found&quot;</span><span class="fu">,</span> <span class="dt">&quot;statusCode&quot;</span><span class="fu">:</span> <span class="dv">404</span> <span class="fu">}</span></span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>ความหมาย</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>400</td>
+<td>Bad Request — ข้อมูลไม่ถูกต้อง</td>
+</tr>
+<tr>
+<td>401</td>
+<td>Unauthorized — token หมดอายุหรือไม่มี</td>
+</tr>
+<tr>
+<td>403</td>
+<td>Forbidden — role ไม่มีสิทธิ์</td>
+</tr>
+<tr>
+<td>404</td>
+<td>Not Found</td>
+</tr>
+<tr>
+<td>409</td>
+<td>Conflict — wristband ซ้ำ</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="checklist-สำหรบ-integrator">Checklist สำหรับ Integrator</h2>
+<ul class="task-list">
+<li><label><input type="checkbox" />ติดตั้ง Firebase (google-services.json
+/ GoogleService-Info.plist)</label></li>
+<li><label><input type="checkbox" />Login → เก็บ idToken → ใส่ใน
+Authorization header ทุก request</label></li>
+<li><label><input type="checkbox" />ตอน app start → GET
+<code>/api/users/profile</code> เช็คว่า profile complete
+แล้วหรือยัง</label></li>
+<li><label><input type="checkbox" />ถ้า profile ยังไม่ครบ → route ไป
+complete profile screen</label></li>
+<li><label><input type="checkbox" />ขอ FCM permission → PATCH
+<code>/api/users/fcm-token</code></label></li>
+<li><label><input type="checkbox" />Handle FCM notification และ navigate
+ตาม <code>type</code> ใน data payload</label></li>
+<li><label><input type="checkbox" />GET <code>/api/medications</code>
+ก่อนแสดง treatment form</label></li>
+<li><label><input type="checkbox" />ใช้ <code>alerts</code> field จาก
+vitals response แสดงสีแดงใน UI</label></li>
+<li><label><input type="checkbox" />ใช้ <code>warning</code> field จาก
+room capacity แสดง color indicator</label></li>
+</ul>

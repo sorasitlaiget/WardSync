@@ -59,6 +59,10 @@ export interface UpdatePatientStatusDto {
   status: PatientStatus;
 }
 
+export interface UpdatePatientRoomDto {
+  assignedRoom: TriageRoom;
+}
+
 export interface AddVitalSignsDto {
   bloodPressure: string;
   heartRate: number;
@@ -71,7 +75,7 @@ export interface AddTreatmentDto {
   diagnosis: string;
   treatment: string;
   notes?: string;
-  medications?: { medicationId: string; dosage?: string }[];
+  medications?: { medicationId: string; dosage?: string; quantity?: number }[];
 }
 
 export interface UpdateVitalSignsDto {

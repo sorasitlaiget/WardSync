@@ -89,6 +89,15 @@ class Patient {
     this.treatments = const [],
   });
 
+  static DateTime _parseTs(dynamic v) {
+    if (v is String) return DateTime.parse(v);
+    if (v is Map) {
+      final s = (v['_seconds'] ?? v['seconds']) as int;
+      return DateTime.fromMillisecondsSinceEpoch(s * 1000);
+    }
+    return DateTime.now();
+  }
+
   factory Patient.fromJson(Map<String, dynamic> json) => Patient(
         id: json['id'] as String,
         wristbandNumber: json['wristbandNumber'] as String,
@@ -97,8 +106,8 @@ class Patient {
         ageRange: AgeRange.values.byName(json['ageRange'] as String),
         triageColor: TriageColor.values.byName(json['triageColor'] as String),
         status: PatientStatus.values.byName(json['status'] as String),
-        room: TriageRoom.values.byName(json['room'] as String),
-        arrivedAt: DateTime.parse(json['arrivedAt'] as String),
+        room: TriageRoom.values.byName((json['assignedRoom'] ?? json['room']) as String),
+        arrivedAt: _parseTs(json['createdAt'] ?? json['arrivedAt']),
         vitalSigns: (json['vitalSigns'] as List<dynamic>? ?? [])
             .map((e) => VitalSigns.fromJson(e as Map<String, dynamic>))
             .toList(),

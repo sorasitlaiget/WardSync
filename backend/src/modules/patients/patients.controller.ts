@@ -32,6 +32,10 @@ export async function listPatients(req: Request, res: Response, next: NextFuncti
 
     let room: TriageRoom | 'all' | undefined;
     if (user.role === 'doctor') {
+      if (!user.assignedRoom) {
+        res.json({ patients: [], warning: 'Doctor has no assigned room' });
+        return;
+      }
       room = queryRoom === 'all' ? 'all' : (user.assignedRoom as TriageRoom);
     } else {
       room = queryRoom as TriageRoom | 'all' | undefined;
@@ -55,6 +59,12 @@ export async function getPatient(req: Request, res: Response, next: NextFunction
 export async function updatePatientStatus(req: Request, res: Response, next: NextFunction) {
   try {
     res.json(await svc.updatePatientStatus(req.params.id, req.body as UpdatePatientStatusDto, req.user!.uid));
+  } catch (err) { next(err); }
+}
+
+export async function updatePatientRoom(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await svc.updatePatientRoom(req.params.id, req.body, req.user!.uid));
   } catch (err) { next(err); }
 }
 

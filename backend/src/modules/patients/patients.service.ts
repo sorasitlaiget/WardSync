@@ -112,7 +112,7 @@ export async function getPatientStats(): Promise<{
 
   snapshot.docs.forEach((doc) => {
     const data = doc.data();
-    if (data.triageColor in byColor) byColor[data.triageColor]++;
+    if (data.assignedRoom in byColor) byColor[data.assignedRoom]++;
     if (data.assignedRoom in byRoom) byRoom[data.assignedRoom]++;
     if (data.status in byStatus) byStatus[data.status]++;
   });
@@ -139,6 +139,22 @@ export async function updatePatientStatus(
   await db().collection(PATIENTS).doc(id).update({
     status: dto.status,
     statusHistory: FieldValue.arrayUnion(logEntry),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  return getPatient(id);
+}
+
+export async function updatePatientRoom(
+  id: string,
+  dto: { assignedRoom: string },
+  changedBy: string
+): Promise<Patient> {
+  const doc = await db().collection(PATIENTS).doc(id).get();
+  if (!doc.exists) throw new NotFoundError('Patient not found');
+
+  await db().collection(PATIENTS).doc(id).update({
+    assignedRoom: dto.assignedRoom,
     updatedAt: FieldValue.serverTimestamp(),
   });
 
@@ -230,8 +246,9 @@ export async function addTreatment(
   await ref.set(treatment);
   await db().collection(PATIENTS).doc(patientId).update({ updatedAt: FieldValue.serverTimestamp() });
 
-  for (const med of medications) {
-    await decrementStock(med.medicationId, med.name);
+  for (let i = 0; i < medications.length; i++) {
+    const qty = dto.medications?.[i]?.quantity ?? 1;
+    await decrementStock(medications[i].medicationId, medications[i].name, qty);
   }
 
   return { id: ref.id, ...treatment } as Treatment;
