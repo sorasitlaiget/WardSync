@@ -77,7 +77,7 @@ class _NursePatientScreenState extends State<NursePatientScreen>
 
   List<Patient> get _filtered {
     return _allPatients.where((p) {
-      final matchColor = _filterColor == null || p.triageColor == _filterColor;
+      final matchColor = _filterColor == null || p.room.name == _filterColor!.name;
       final matchSearch = _searchQuery.isEmpty ||
           p.wristbandNumber.toLowerCase().contains(_searchQuery.toLowerCase());
       return matchColor && matchSearch;
@@ -85,7 +85,7 @@ class _NursePatientScreenState extends State<NursePatientScreen>
   }
 
   int _countByColor(TriageColor c) =>
-      _allPatients.where((p) => p.triageColor == c).length;
+      _allPatients.where((p) => p.room.name == c.name).length;
 
   Color _triageColor(TriageColor c) {
     switch (c) {
@@ -324,7 +324,7 @@ class _NursePatientScreenState extends State<NursePatientScreen>
   }
 
   Widget _buildPatientCard(Patient p) {
-    final color = _triageColor(p.triageColor);
+    final color = _triageColor(TriageColor.values.byName(p.room.name));
     return GestureDetector(
       onTap: () => Navigator.push(
         context,

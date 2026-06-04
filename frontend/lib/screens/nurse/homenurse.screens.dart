@@ -254,10 +254,10 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
 
   Widget _buildCountCards() {
     final counts = [
-      (_patients.where((p) => p.triageColor == TriageColor.red).length, 'Red', _red),
-      (_patients.where((p) => p.triageColor == TriageColor.yellow).length, 'YEL', _yellow),
-      (_patients.where((p) => p.triageColor == TriageColor.green).length, 'GRN', _grn),
-      (_patients.where((p) => p.triageColor == TriageColor.black).length, 'BLK', _blk),
+      (_patients.where((p) => p.room == TriageRoom.red).length, 'Red', _red),
+      (_patients.where((p) => p.room == TriageRoom.yellow).length, 'YEL', _yellow),
+      (_patients.where((p) => p.room == TriageRoom.green).length, 'GRN', _grn),
+      (_patients.where((p) => p.room == TriageRoom.black).length, 'BLK', _blk),
     ];
     return Row(
       children: counts
@@ -316,7 +316,7 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
   // ── Patient card ──────────────────────────────────────────────────────────
 
   Widget _buildPatientCard(Patient p) {
-    final color = _triageColor(p.triageColor);
+    final color = _triageColor(TriageColor.values.byName(p.room.name));
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
@@ -410,7 +410,7 @@ class _NurseHomeScreenState extends State<NurseHomeScreen>
               border: Border.all(color: color.withOpacity(0.4), width: 1),
             ),
             child: Text(
-              _triageLabel(p.triageColor),
+              _triageLabel(TriageColor.values.byName(p.room.name)),
               style: TextStyle(
                 color: color,
                 fontSize: 9,
