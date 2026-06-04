@@ -62,6 +62,12 @@ export async function updatePatientStatus(req: Request, res: Response, next: Nex
   } catch (err) { next(err); }
 }
 
+export async function updatePatientRoom(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await svc.updatePatientRoom(req.params.id, req.body, req.user!.uid));
+  } catch (err) { next(err); }
+}
+
 // ── Vital Signs ──────────────────────────────────────────────
 
 export async function addVitalSigns(req: Request, res: Response, next: NextFunction) {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../shared/widgets/logout_dialog.dart';
 import '../../widgets/wardsync_logo.dart';
 import '../../../features/patients/repositories/patient_repository.dart';
 import '../../../shared/models/patient.dart';
@@ -411,9 +412,9 @@ class _NursePatientScreenState extends State<NursePatientScreen>
   }
 
   Widget _buildBottomNav() {
-    final outlined = [Icons.home_outlined, Icons.assignment_outlined, Icons.settings_outlined];
-    final filled = [Icons.home, Icons.assignment, Icons.settings];
-    const labels = ['Home', 'Patient', 'Setting'];
+    final outlined = [Icons.home_outlined, Icons.assignment_outlined, Icons.logout];
+    final filled = [Icons.home, Icons.assignment, Icons.logout];
+    const labels = ['Home', 'Patient', 'Logout'];
 
     return Container(
       decoration: BoxDecoration(
@@ -430,32 +431,7 @@ class _NursePatientScreenState extends State<NursePatientScreen>
               if (i == 0) {
                 Navigator.pushReplacementNamed(context, '/nurse-home');
               } else if (i == 2) {
-                final confirm = await showDialog<bool>(
-                  context: context,
-                  builder: (_) => AlertDialog(
-                    backgroundColor: _card,
-                    title: const Text('Logout',
-                        style: TextStyle(color: Colors.white)),
-                    content: const Text('Are you sure?',
-                        style: TextStyle(color: Colors.white70)),
-                    actions: [
-                      TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: const Text('Cancel')),
-                      TextButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          child: const Text('Logout',
-                              style: TextStyle(color: Colors.red))),
-                    ],
-                  ),
-                );
-                if (confirm == true) {
-                  await FirebaseAuth.instance.signOut();
-                  if (mounted) {
-                    Navigator.pushNamedAndRemoveUntil(
-                        context, '/', (_) => false);
-                  }
-                }
+                await showLogoutDialog(context);
               }
             },
             behavior: HitTestBehavior.opaque,

@@ -372,10 +372,10 @@ Color _cardBorderColor(StockStatus s) {
   }
 
   void _showEditMedicationDialog(Medication m) {
-    final nameCtrl = TextEditingController(text: m.name);
-    final dosageCtrl = TextEditingController(text: m.dosage);
+    final nameCtrl      = TextEditingController(text: m.name);
+    final dosageCtrl    = TextEditingController(text: m.dosage);
+    final quantityCtrl  = TextEditingController(text: '${m.quantity}');
     final thresholdCtrl = TextEditingController(text: '${m.lowStockThreshold}');
-    final stockCtrl = TextEditingController();
 
     showDialog(
       context: context,
@@ -391,16 +391,21 @@ Color _cardBorderColor(StockStatus s) {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildDialogField(nameCtrl, 'Name'),
-              const SizedBox(height: 10),
-              _buildDialogField(dosageCtrl, 'Dosage'),
-              const SizedBox(height: 10),
-              _buildDialogField(thresholdCtrl, 'Low stock threshold', isNumber: true),
-              const SizedBox(height: 16),
-              Text('ADJUST STOCK (e.g. +10 or -5)',
-                  style: TextStyle(color: _textDim, fontSize: 10, letterSpacing: 1.2)),
+              Text('NAME', style: TextStyle(color: _textDim, fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.w600)),
               const SizedBox(height: 6),
-              _buildDialogField(stockCtrl, 'Delta (leave empty to skip)', isNumber: false),
+              _buildDialogField(nameCtrl, 'Medication name'),
+              const SizedBox(height: 12),
+              Text('DOSAGE', style: TextStyle(color: _textDim, fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              _buildDialogField(dosageCtrl, 'e.g. 500mg, 2ml'),
+              const SizedBox(height: 12),
+              Text('QUANTITY', style: TextStyle(color: _green, fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              _buildDialogField(quantityCtrl, 'Current stock count', isNumber: true),
+              const SizedBox(height: 12),
+              Text('LOW STOCK THRESHOLD', style: TextStyle(color: _textDim, fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              _buildDialogField(thresholdCtrl, 'Alert when stock falls below this', isNumber: true),
             ],
           ),
         ),
@@ -419,9 +424,9 @@ Color _cardBorderColor(StockStatus s) {
                   dosage: dosageCtrl.text.trim().isNotEmpty ? dosageCtrl.text.trim() : null,
                   lowStockThreshold: int.tryParse(thresholdCtrl.text.trim()),
                 );
-                final delta = int.tryParse(stockCtrl.text.trim());
-                if (delta != null && delta != 0) {
-                  await _repo.updateStock(m.id, delta);
+                final newQty = int.tryParse(quantityCtrl.text.trim());
+                if (newQty != null && newQty != m.quantity) {
+                  await _repo.updateStock(m.id, newQty - m.quantity);
                 }
                 await _loadMedications();
                 if (mounted) {
@@ -678,9 +683,9 @@ Color _cardBorderColor(StockStatus s) {
   // ── Bottom nav ────────────────────────────────────────────────────────────
 
   Widget _buildBottomNav() {
-    final outlined = [Icons.home_outlined, Icons.person_outline, Icons.work_outline, Icons.settings_outlined];
-    final filled   = [Icons.home,          Icons.person,         Icons.work,          Icons.settings];
-    const labels   = ['Home', 'Patient', 'Inventory', 'Room Config'];
+    final outlined = [Icons.home_outlined, Icons.work_outline, Icons.meeting_room_outlined, Icons.person_outline];
+    final filled   = [Icons.home,          Icons.work,          Icons.meeting_room,          Icons.person];
+    const labels   = ['Home', 'Inventory', 'Room', 'Users'];
     return Container(
       decoration: BoxDecoration(
         color: _card,

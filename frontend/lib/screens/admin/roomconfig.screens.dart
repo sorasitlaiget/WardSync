@@ -307,9 +307,9 @@ class _RoomConfigScreenState extends State<RoomConfigScreen>
   // ── Bottom nav ────────────────────────────────────────────────────────────
 
   Widget _buildBottomNav() {
-    final outlined = [Icons.home_outlined, Icons.person_outline, Icons.work_outline, Icons.settings_outlined];
-    final filled   = [Icons.home,          Icons.person,         Icons.work,          Icons.settings];
-    const labels   = ['Home', 'Patient', 'Inventory', 'Room Config'];
+    final outlined = [Icons.home_outlined, Icons.work_outline, Icons.meeting_room_outlined, Icons.person_outline];
+    final filled   = [Icons.home,          Icons.work,          Icons.meeting_room,          Icons.person];
+    const labels   = ['Home', 'Inventory', 'Room', 'Users'];
     return Container(
       decoration: BoxDecoration(
         color: _card,

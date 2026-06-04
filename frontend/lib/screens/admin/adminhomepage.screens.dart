@@ -100,7 +100,7 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen>
                         const SizedBox(height: 20),
                         _buildStatCards(),
                         const SizedBox(height: 24),
-                        _buildSectionLabel('BY TRIAGE COLOR'),
+                        _buildSectionLabel('BY ROOM (CURRENT)'),
                         const SizedBox(height: 12),
                         _buildTriageColorCards(),
                         const SizedBox(height: 24),
@@ -413,17 +413,17 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen>
   Widget _buildBottomNav() {
     final items = [
       Icons.home_outlined,
-      Icons.person_outline,
       Icons.work_outline,
       Icons.meeting_room_outlined,
+      Icons.person_outline,
     ];
     final activeItems = [
       Icons.home,
-      Icons.person,
       Icons.work,
       Icons.meeting_room,
+      Icons.person,
     ];
-    const labels = ['Home', 'Patient', 'Inventory', 'Room Config'];
+    const labels = ['Home', 'Inventory', 'Room', 'Users'];
     return Container(
       decoration: BoxDecoration(
         color: _card,

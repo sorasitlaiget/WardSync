@@ -60,7 +60,11 @@ export async function updateMedication(id: string, dto: UpdateMedicationDto): Pr
   const doc = await db().collection(MEDICATIONS).doc(id).get();
   if (!doc.exists) throw new NotFoundError('Medication not found');
 
-  await db().collection(MEDICATIONS).doc(id).update({ ...dto, updatedAt: FieldValue.serverTimestamp() });
+  const data = doc.data()!;
+  const newThreshold = dto.lowStockThreshold ?? data.lowStockThreshold;
+  const status = computeStatus(data.quantity, newThreshold);
+
+  await db().collection(MEDICATIONS).doc(id).update({ ...dto, status, updatedAt: FieldValue.serverTimestamp() });
   return getMedication(id);
 }
 
@@ -96,13 +100,13 @@ export async function updateStock(id: string, dto: UpdateStockDto): Promise<Medi
   return updated;
 }
 
-export async function decrementStock(medicationId: string, name: string): Promise<void> {
+export async function decrementStock(medicationId: string, name: string, qty = 1): Promise<void> {
   const ref = db().collection(MEDICATIONS).doc(medicationId);
   const doc = await ref.get();
   if (!doc.exists) return;
 
   const data = doc.data()!;
-  const newQuantity = Math.max(0, data.quantity - 1);
+  const newQuantity = Math.max(0, data.quantity - qty);
   const threshold: number = data.lowStockThreshold;
   const status = computeStatus(newQuantity, threshold);
 
@@ -115,7 +119,7 @@ export async function decrementStock(medicationId: string, name: string): Promis
 }
 
 export async function resolveMedications(
-  items: { medicationId: string; dosage?: string }[]
+  items: { medicationId: string; dosage?: string; quantity?: number }[]
 ): Promise<TreatmentMedication[]> {
   const resolved: TreatmentMedication[] = [];
 

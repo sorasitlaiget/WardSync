@@ -75,7 +75,7 @@ export async function getChartStats(
   for (const p of patients) {
     const dateStr = toDateString(p.createdAt as FirebaseFirestore.Timestamp);
     if (dateStr in perDayCount) perDayCount[dateStr]++;
-    if (p.triageColor in byColor) byColor[p.triageColor]++;
+    if (p.assignedRoom in byColor) byColor[p.assignedRoom]++;
     if (p.status === 'deceased' && dateStr in deceasedPerDay) deceasedPerDay[dateStr]++;
 
     const history = (p.statusHistory ?? []) as StatusLog[];

@@ -36,14 +36,16 @@ class _FormVitals {
 
 // ── Medication item ───────────────────────────────────────────────────────────
 class MedicationItem {
+  final String medicationId;
   final String name;
   final String dosage;
-  bool administered;
+  int quantity;
 
   MedicationItem({
+    required this.medicationId,
     required this.name,
     required this.dosage,
-    this.administered = false,
+    this.quantity = 1,
   });
 }
 
@@ -76,12 +78,15 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
   final _diagnosisCtrl = TextEditingController();
 
   final List<MedicationItem> _medications = [];
+  List<Map<String, dynamic>> _existingTreatments = [];
+  late TriageRoom _currentRoom;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: widget.isDoctor ? 3 : 2, vsync: this);
     _currentStatus = widget.patient.status;
+    _currentRoom = widget.patient.room;
     _sysCtrl.text = '';
     _diaCtrl.text = '';
     _pulseCtrl.text = '';
@@ -90,6 +95,15 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
     _rrCtrl.text = '';
     _diagnosisCtrl.text = '';
     _loadLatestVitals();
+    if (widget.isDoctor) _loadTreatments();
+  }
+
+  Future<void> _loadTreatments() async {
+    try {
+      final list = await _repo.getTreatments(widget.patient.id);
+      if (!mounted) return;
+      setState(() => _existingTreatments = list);
+    } catch (_) {}
   }
 
   Future<void> _loadLatestVitals() async {
@@ -192,7 +206,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
       backgroundColor: AppColors.background,
       appBar: WardSyncAppBar(
         title: '#${widget.patient.wristbandNumber} VITALS',
-        badge: BadgeVariant.nurse,
+        badge: widget.isDoctor ? BadgeVariant.doctor : BadgeVariant.nurse,
         subtitle: _arrivedTimeLabel,
       ),
       body: Column(
@@ -207,6 +221,19 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                   vitals: _vitals,
                   status: _currentStatus,
                   canChangeStatus: widget.isDoctor,
+                  currentRoom: _currentRoom,
+                  onRoomChange: widget.isDoctor ? (room) async {
+                    setState(() => _currentRoom = room);
+                    try {
+                      await _repo.updateRoom(widget.patient.id, room.name);
+                    } catch (e) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text(e.toString().replaceFirst('Exception: ', '')),
+                        backgroundColor: Colors.redAccent,
+                      ));
+                    }
+                  } : null,
                   onStatusChange: (s) async {
                     setState(() => _currentStatus = s);
                     try {
@@ -235,7 +262,9 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                     diagnosisCtrl: _diagnosisCtrl,
                     medications: _medications,
                     onAddMedication: _showAddMedicationDialog,
+                    onRemoveMedication: (med) => setState(() => _medications.remove(med)),
                     onSave: _saveTreatment,
+                    existingTreatments: _existingTreatments,
                   ),
               ],
             ),
@@ -417,10 +446,18 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
     try {
       await _repo.addTreatment(widget.patient.id, {
         'diagnosis': _diagnosisCtrl.text,
-        'treatment': _medications.map((m) => '${m.name} ${m.dosage}').join(', '),
+        'treatment': _medications.map((m) => '${m.name} x${m.quantity}').join(', '),
         'notes': '',
+        'medications': _medications.map((m) => {
+          'medicationId': m.medicationId,
+          'dosage': m.dosage,
+          'quantity': m.quantity,
+        }).toList(),
       });
       if (!mounted) return;
+      _diagnosisCtrl.clear();
+      setState(() => _medications.clear());
+      await _loadTreatments();
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Treatment saved'),
         backgroundColor: AppColors.surface,
@@ -529,14 +566,97 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                                           color: AppColors.lime, size: 20),
                                   onTap: alreadyAdded
                                       ? null
-                                      : () {
-                                          setState(() {
-                                            _medications.add(MedicationItem(
-                                              name: med.name,
-                                              dosage: med.dosage,
-                                            ));
-                                          });
+                                      : () async {
                                           Navigator.pop(ctx);
+                                          final qtyCtrl = TextEditingController(text: '1');
+                                          final qty = await showDialog<int>(
+                                            context: context,
+                                            builder: (ctx) => Dialog(
+                                              backgroundColor: Colors.transparent,
+                                              child: Container(
+                                                padding: const EdgeInsets.all(24),
+                                                decoration: BoxDecoration(
+                                                  color: AppColors.surface,
+                                                  borderRadius: BorderRadius.circular(14),
+                                                  border: Border.all(color: AppColors.cardBorder),
+                                                ),
+                                                child: Column(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(med.name, style: GoogleFonts.rajdhani(
+                                                        color: AppColors.lime, fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: 1.5)),
+                                                    const SizedBox(height: 4),
+                                                    Text('${med.dosage}  ·  ${med.quantity} in stock',
+                                                        style: GoogleFonts.rajdhani(color: AppColors.textSecondary, fontSize: 12)),
+                                                    const SizedBox(height: 16),
+                                                    Text('QUANTITY', style: TextStyle(color: AppColors.textMuted,
+                                                        fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 1.5)),
+                                                    const SizedBox(height: 8),
+                                                    TextField(
+                                                      controller: qtyCtrl,
+                                                      keyboardType: TextInputType.number,
+                                                      autofocus: true,
+                                                      style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700),
+                                                      textAlign: TextAlign.center,
+                                                      decoration: InputDecoration(
+                                                        filled: true,
+                                                        fillColor: AppColors.background,
+                                                        contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                                                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8),
+                                                            borderSide: BorderSide(color: AppColors.cardBorder)),
+                                                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8),
+                                                            borderSide: BorderSide(color: AppColors.cardBorder)),
+                                                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8),
+                                                            borderSide: BorderSide(color: AppColors.lime, width: 1.5)),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 20),
+                                                    Row(children: [
+                                                      Expanded(child: GestureDetector(
+                                                        onTap: () => Navigator.pop(ctx),
+                                                        child: Container(
+                                                          height: 44,
+                                                          decoration: BoxDecoration(
+                                                            color: AppColors.background,
+                                                            borderRadius: BorderRadius.circular(8),
+                                                            border: Border.all(color: AppColors.cardBorder),
+                                                          ),
+                                                          alignment: Alignment.center,
+                                                          child: Text('CANCEL', style: TextStyle(color: AppColors.textMuted,
+                                                              fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1.5)),
+                                                        ),
+                                                      )),
+                                                      const SizedBox(width: 12),
+                                                      Expanded(child: GestureDetector(
+                                                        onTap: () => Navigator.pop(ctx, int.tryParse(qtyCtrl.text.trim()) ?? 1),
+                                                        child: Container(
+                                                          height: 44,
+                                                          decoration: BoxDecoration(
+                                                            color: AppColors.lime,
+                                                            borderRadius: BorderRadius.circular(8),
+                                                          ),
+                                                          alignment: Alignment.center,
+                                                          child: const Text('ADD', style: TextStyle(color: Colors.black,
+                                                              fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 1.5)),
+                                                        ),
+                                                      )),
+                                                    ]),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                          if (qty != null && qty > 0) {
+                                            setState(() {
+                                              _medications.add(MedicationItem(
+                                                medicationId: med.id,
+                                                name: med.name,
+                                                dosage: med.dosage,
+                                                quantity: qty,
+                                              ));
+                                            });
+                                          }
                                         },
                                 );
                               },
@@ -560,12 +680,16 @@ class _OverviewTab extends StatelessWidget {
   final PatientStatus status;
   final ValueChanged<PatientStatus> onStatusChange;
   final bool canChangeStatus;
+  final TriageRoom? currentRoom;
+  final ValueChanged<TriageRoom>? onRoomChange;
 
   const _OverviewTab({
     required this.vitals,
     required this.status,
     required this.onStatusChange,
     this.canChangeStatus = true,
+    this.currentRoom,
+    this.onRoomChange,
   });
 
   @override
@@ -583,6 +707,12 @@ class _OverviewTab extends StatelessWidget {
             _sectionLabel('CHANGE STATUS'),
             const SizedBox(height: 10),
             _buildStatusButtons(context),
+            if (onRoomChange != null) ...[
+              const SizedBox(height: 24),
+              _sectionLabel('MOVE TO ROOM'),
+              const SizedBox(height: 10),
+              _buildRoomButtons(context),
+            ],
           ],
         ],
       ),
@@ -790,6 +920,44 @@ class _OverviewTab extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildRoomButtons(BuildContext context) {
+    const rooms = [TriageRoom.red, TriageRoom.yellow, TriageRoom.green, TriageRoom.black];
+    const labels = ['RED', 'YELLOW', 'GREEN', 'BLACK'];
+    const colors = [Color(0xFFD94040), Color(0xFFE8B840), Color(0xFF4CAF50), Color(0xFF6B7280)];
+
+    return Row(
+      children: List.generate(rooms.length, (i) {
+        final isActive = currentRoom == rooms[i];
+        return Expanded(
+          child: GestureDetector(
+            onTap: isActive ? null : () => onRoomChange?.call(rooms[i]),
+            child: Container(
+              margin: EdgeInsets.only(right: i < 3 ? 6 : 0),
+              height: 40,
+              decoration: BoxDecoration(
+                color: isActive ? colors[i].withAlpha(40) : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isActive ? colors[i] : AppColors.cardBorder,
+                  width: isActive ? 1.5 : 1,
+                ),
+              ),
+              alignment: Alignment.center,
+              child: Text(labels[i],
+                  style: TextStyle(
+                    color: isActive ? colors[i] : AppColors.textSecondary,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.2,
+                  )),
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -941,6 +1109,7 @@ class _VitalTab extends StatelessWidget {
     );
   }
 
+
   Widget _buildAlertBanner() {
     return Container(
       width: double.infinity,
@@ -979,13 +1148,17 @@ class _TreatmentTab extends StatelessWidget {
   final TextEditingController diagnosisCtrl;
   final List<MedicationItem> medications;
   final VoidCallback onAddMedication;
+  final void Function(MedicationItem) onRemoveMedication;
   final VoidCallback onSave;
+  final List<Map<String, dynamic>> existingTreatments;
 
   const _TreatmentTab({
     required this.diagnosisCtrl,
     required this.medications,
     required this.onAddMedication,
+    required this.onRemoveMedication,
     required this.onSave,
+    this.existingTreatments = const [],
   });
 
   @override
@@ -998,6 +1171,33 @@ class _TreatmentTab extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (existingTreatments.isNotEmpty) ...[
+                  _sectionLabel('PREVIOUS TREATMENTS'),
+                  const SizedBox(height: 10),
+                  ...existingTreatments.map((t) => Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.cardBorder),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if ((t['diagnosis'] as String?)?.isNotEmpty == true)
+                          Text(t['diagnosis'] as String,
+                              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                        if ((t['treatment'] as String?)?.isNotEmpty == true) ...[
+                          const SizedBox(height: 4),
+                          Text(t['treatment'] as String,
+                              style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                        ],
+                      ],
+                    ),
+                  )),
+                  const SizedBox(height: 20),
+                ],
                 _sectionLabel('DIAGNOSIS'),
                 const SizedBox(height: 10),
                 _buildDiagnosisField(),
@@ -1009,7 +1209,7 @@ class _TreatmentTab extends StatelessWidget {
             ),
           ),
         ),
-        // ADD MEDICATION + SAVE VITALS — pinned at bottom, close together
+        // ADD MEDICATION + SAVE TREATMENT — pinned at bottom
         Container(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
           color: AppColors.background,
@@ -1050,7 +1250,7 @@ class _TreatmentTab extends StatelessWidget {
                   ),
                   alignment: Alignment.center,
                   child: Text(
-                    'SAVE VITALS',
+                    'SAVE TREATMENT',
                     style: GoogleFonts.rajdhani(
                       color: Colors.black,
                       fontSize: 17,
@@ -1118,26 +1318,21 @@ class _TreatmentTab extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  med.name,
-                  style: GoogleFonts.rajdhani(
-                    color: AppColors.textPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  med.dosage,
-                  style: GoogleFonts.rajdhani(
-                    color: AppColors.textMuted,
-                    fontSize: 12,
-                  ),
-                ),
+                Text(med.name,
+                    style: GoogleFonts.rajdhani(color: AppColors.textPrimary,
+                        fontSize: 15, fontWeight: FontWeight.w600)),
+                Text('${med.dosage}  ·  qty: ${med.quantity}',
+                    style: GoogleFonts.rajdhani(color: AppColors.textMuted, fontSize: 12)),
               ],
             ),
           ),
-          if (med.administered)
-            const Icon(Icons.check, color: AppColors.lime, size: 20),
+          GestureDetector(
+            onTap: () => onRemoveMedication(med),
+            child: const Padding(
+              padding: EdgeInsets.all(4),
+              child: Icon(Icons.close, color: Color(0xFFD94040), size: 18),
+            ),
+          ),
         ],
       ),
     );

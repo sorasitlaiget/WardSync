@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../widgets/wardsync_logo.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../shared/widgets/logout_dialog.dart';
 import '../../../features/auth/repositories/auth_repository.dart';
 import '../../../features/patients/repositories/patient_repository.dart';
 import '../../../features/rooms/repositories/room_repository.dart';
@@ -352,7 +353,7 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen>
     const items = [
       (Icons.home_outlined, Icons.home, 'Home'),
       (Icons.notifications_outlined, Icons.notifications, 'Alert'),
-      (Icons.settings_outlined, Icons.settings, 'Setting'),
+      (Icons.logout, Icons.logout, 'Logout'),
     ];
     return Container(
       decoration: BoxDecoration(
@@ -372,30 +373,7 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen>
                 return;
               }
               if (i == 2) {
-                final confirm = await showDialog<bool>(
-                  context: context,
-                  builder: (_) => AlertDialog(
-                    backgroundColor: _card,
-                    title: const Text('Logout', style: TextStyle(color: Colors.white)),
-                    content: const Text('Are you sure?',
-                        style: TextStyle(color: Colors.white70)),
-                    actions: [
-                      TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: const Text('Cancel')),
-                      TextButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          child: const Text('Logout',
-                              style: TextStyle(color: Colors.red))),
-                    ],
-                  ),
-                );
-                if (confirm == true) {
-                  await FirebaseAuth.instance.signOut();
-                  if (mounted) {
-                    Navigator.pushNamedAndRemoveUntil(context, '/', (_) => false);
-                  }
-                }
+                await showLogoutDialog(context);
                 return;
               }
               setState(() => _navIndex = i);

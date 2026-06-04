@@ -75,9 +75,26 @@ class PatientRepository {
     }
   }
 
+  Future<void> updateRoom(String id, String room) async {
+    try {
+      await _dio.patch('${ApiConstants.patientById(id)}/room', data: {'assignedRoom': room});
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
   Future<List<Map<String, dynamic>>> getVitalSigns(String id) async {
     try {
       final res = await _dio.get(ApiConstants.patientVitals(id));
+      return (res.data as List).cast<Map<String, dynamic>>();
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getTreatments(String id) async {
+    try {
+      final res = await _dio.get(ApiConstants.patientTreatments(id));
       return (res.data as List).cast<Map<String, dynamic>>();
     } on DioException catch (e) {
       throw AppException.fromDioException(e);

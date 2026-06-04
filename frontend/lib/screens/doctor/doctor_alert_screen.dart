@@ -1,26 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../shared/widgets/logout_dialog.dart';
 import '../../widgets/wardsync_logo.dart';
 import '../../../features/auth/repositories/auth_repository.dart';
 import '../../../features/patients/repositories/patient_repository.dart';
 import '../../../shared/models/patient.dart';
 import '../../../shared/models/user_profile.dart';
+import 'patient_detail_screen.dart';
 
 enum _AlertType { newPatient, vitalAlert, vitalUpdated }
 
 class _AlertItem {
   final _AlertType type;
+  final String patientId;
   final String patientNumber;
   final String subtitle;
   final DateTime timestamp;
   final TriageColor triageColor;
+  final Patient patient;
 
   const _AlertItem({
     required this.type,
+    required this.patientId,
     required this.patientNumber,
     required this.subtitle,
     required this.timestamp,
     required this.triageColor,
+    required this.patient,
   });
 }
 
@@ -64,6 +70,8 @@ class _DoctorAlertScreenState extends State<DoctorAlertScreen> {
       for (final p in patients) {
         alerts.add(_AlertItem(
           type: _AlertType.newPatient,
+          patient: p,
+          patientId: p.id,
           patientNumber: p.wristbandNumber,
           subtitle:
               '${_colorLabel(p.triageColor)} · ${_sexLabel(p.sex)} · ${_ageLabel(p.ageRange)} · ${_timeAgo(p.arrivedAt)}',
@@ -71,28 +79,57 @@ class _DoctorAlertScreenState extends State<DoctorAlertScreen> {
           triageColor: p.triageColor,
         ));
 
-        for (final v in p.vitalSigns) {
-          final sys = v.systolic;
-          final dia = v.diastolic;
-          if ((sys != null && sys < 90) || (dia != null && dia < 60)) {
-            alerts.add(_AlertItem(
-              type: _AlertType.vitalAlert,
-              patientNumber: p.wristbandNumber,
-              subtitle:
-                  'BP ${sys ?? '?'}/${dia ?? '?'} · below threshold · ${_timeAgo(v.recordedAt)}',
-              timestamp: v.recordedAt,
-              triageColor: p.triageColor,
-            ));
-          } else {
-            alerts.add(_AlertItem(
-              type: _AlertType.vitalUpdated,
-              patientNumber: p.wristbandNumber,
-              subtitle: 'By ${v.recordedBy} · ${_timeAgo(v.recordedAt)}',
-              timestamp: v.recordedAt,
-              triageColor: p.triageColor,
-            ));
+        try {
+          final vitals = await _patientRepo.getVitalSigns(p.id);
+          for (final v in vitals) {
+            final bp   = (v['bloodPressure'] as String? ?? '').split('/');
+            final sys  = bp.isNotEmpty ? int.tryParse(bp[0]) : null;
+            final dia  = bp.length > 1 ? int.tryParse(bp[1]) : null;
+            final hr   = (v['heartRate'] as num?)?.toInt();
+            final temp = (v['temperature'] as num?)?.toDouble();
+            final spo2 = (v['oxygenSaturation'] as num?)?.toInt();
+            final rr   = (v['respiratoryRate'] as num?)?.toInt();
+            final ts   = _parseTs(v['recordedAt']);
+
+            final isCritical =
+              (sys != null && (sys < 90 || sys > 180)) ||
+              (dia != null && (dia < 60 || dia > 120)) ||
+              (hr  != null && (hr  < 40 || hr  > 150)) ||
+              (temp != null && (temp < 35.0 || temp > 39.5)) ||
+              (spo2 != null && spo2 < 90) ||
+              (rr   != null && (rr  < 8  || rr  > 30));
+
+            if (isCritical) {
+              final parts = <String>[];
+              if (sys != null && dia != null &&
+                  ((sys < 90 || sys > 180) || (dia < 60 || dia > 120)))
+                parts.add('BP $sys/$dia');
+              if (hr != null && (hr < 40 || hr > 150)) parts.add('HR $hr');
+              if (temp != null && (temp < 35.0 || temp > 39.5)) parts.add('Temp ${temp}°C');
+              if (spo2 != null && spo2 < 90) parts.add('SpO2 ${spo2}%');
+              if (rr != null && (rr < 8 || rr > 30)) parts.add('RR $rr');
+              alerts.add(_AlertItem(
+                type: _AlertType.vitalAlert,
+                patient: p,
+                patientId: p.id,
+                patientNumber: p.wristbandNumber,
+                subtitle: '${parts.join(" · ")} · ${_timeAgo(ts)}',
+                timestamp: ts,
+                triageColor: p.triageColor,
+              ));
+            } else {
+              alerts.add(_AlertItem(
+                type: _AlertType.vitalUpdated,
+                patient: p,
+                patientId: p.id,
+                patientNumber: p.wristbandNumber,
+                subtitle: 'Vitals recorded · ${_timeAgo(ts)}',
+                timestamp: ts,
+                triageColor: p.triageColor,
+              ));
+            }
           }
-        }
+        } catch (_) {}
       }
 
       alerts.sort((a, b) => b.timestamp.compareTo(a.timestamp));
@@ -106,6 +143,15 @@ class _DoctorAlertScreenState extends State<DoctorAlertScreen> {
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  DateTime _parseTs(dynamic v) {
+    if (v is String) return DateTime.parse(v);
+    if (v is Map) {
+      final s = (v['_seconds'] ?? v['seconds']) as int;
+      return DateTime.fromMillisecondsSinceEpoch(s * 1000);
+    }
+    return DateTime.now();
   }
 
   String _timeAgo(DateTime dt) {
@@ -247,7 +293,7 @@ class _DoctorAlertScreenState extends State<DoctorAlertScreen> {
     switch (item.type) {
       case _AlertType.newPatient:
         iconBg   = _triageColor(item.triageColor);
-        iconData = Icons.add;
+        iconData = Icons.person_add;
         label    = 'New Patient';
       case _AlertType.vitalAlert:
         iconBg   = const Color(0xFFE8B840);
@@ -259,7 +305,11 @@ class _DoctorAlertScreenState extends State<DoctorAlertScreen> {
         label    = 'Vital Updated';
     }
 
-    return Container(
+    return GestureDetector(
+      onTap: () => Navigator.push(context, MaterialPageRoute(
+        builder: (_) => PatientDetailScreen(patient: item.patient, isDoctor: true),
+      )).then((_) => _loadData()),
+      child: Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: _card,
@@ -308,6 +358,7 @@ class _DoctorAlertScreenState extends State<DoctorAlertScreen> {
           const SizedBox(width: 12),
         ],
       ),
+    ),
     );
   }
 
@@ -315,7 +366,7 @@ class _DoctorAlertScreenState extends State<DoctorAlertScreen> {
     const items = [
       (Icons.home_outlined, Icons.home, 'Home'),
       (Icons.notifications_outlined, Icons.notifications, 'Alert'),
-      (Icons.settings_outlined, Icons.settings, 'Setting'),
+      (Icons.logout, Icons.logout, 'Logout'),
     ];
     return Container(
       decoration: BoxDecoration(
@@ -336,35 +387,7 @@ class _DoctorAlertScreenState extends State<DoctorAlertScreen> {
                 return;
               }
               if (i == 2) {
-                final confirm = await showDialog<bool>(
-                  context: context,
-                  builder: (_) => AlertDialog(
-                    backgroundColor: _card,
-                    title: const Text('Logout',
-                        style: TextStyle(color: Colors.white)),
-                    content: const Text('Are you sure?',
-                        style: TextStyle(color: Colors.white70)),
-                    actions: [
-                      TextButton(
-                          onPressed: () =>
-                              Navigator.pop(context, false),
-                          child: const Text('Cancel')),
-                      TextButton(
-                          onPressed: () =>
-                              Navigator.pop(context, true),
-                          child: const Text('Logout',
-                              style:
-                                  TextStyle(color: Colors.red))),
-                    ],
-                  ),
-                );
-                if (confirm == true) {
-                  await FirebaseAuth.instance.signOut();
-                  if (mounted) {
-                    Navigator.pushNamedAndRemoveUntil(
-                        context, '/', (_) => false);
-                  }
-                }
+                await showLogoutDialog(context);
                 return;
               }
             },
